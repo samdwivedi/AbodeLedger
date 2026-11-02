@@ -155,3 +155,26 @@ You must understand every line you submit. We check this with your video and in 
 5. Paste the repository link and the video link in the application form.
 
 We will run `pnpm install && pnpm check && pnpm typecheck && pnpm test` on your repository.
+
+## Decisions
+
+### 1. Integer Cent Representation & Deterministic Remainder Distribution
+
+- **Decision:** All monetary values are strictly represented and calculated in integer cents (`total_cents`, `amount_cents`). Remainder cents from division (`totalCents % members.length`) are allocated one-by-one in the strict order members were added (`members.position ASC`).
+- **Why:** Floating-point math introduces binary precision errors that are unacceptable in financial ledgers. Integer cents guarantee exact mathematical conservation ($\sum \text{shares} = \text{total}$) across all values, including small amounts and uneven divisions.
+
+### 2. Atomic Idempotency & Concurrency Control
+
+- **Decision:** The share payment endpoint enforces an `Idempotency-Key` header and performs an atomic conditional update:
+  `UPDATE shares SET paid_at = ?, idempotency_key = ? WHERE id = ? AND bill_id = ? AND paid_at IS NULL`.
+- **Why:** Network retries and concurrent user requests can lead to double-payments. With this atomic check, SQLite/D1 executes the state transition safely: the first request succeeds (or duplicate requests with the identical key safely replay the existing payment receipt with 200 OK), while conflicting concurrent requests or mismatched keys are rejected with 409 Conflict.
+
+### 3. Named Defensive Database Constraints
+
+- **Decision:** Five named constraints protect data integrity directly in D1/SQLite:
+  1. `ck_bills_total_positive`: Ensures `total_cents > 0` and is an integer.
+  2. `ck_shares_amount_not_negative`: Ensures `amount_cents >= 0` (supporting valid zero-cent shares for micro-totals).
+  3. `uq_shares_bill_member`: Prevents duplicate shares for the same member on a bill.
+  4. `uq_members_position`: Preserves deterministic FIFO member positions per home.
+  5. Foreign keys (`fk_members_home`, `fk_bills_home`, etc.) to prevent orphan records.
+- **Why:** Database constraints act as an unbreakable layer of defense against corrupted state, buggy migrations, or unexpected race conditions.
