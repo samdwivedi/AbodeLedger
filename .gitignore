@@ -3,9 +3,16 @@ dist/
 build/
 .wrangler/
 .dev.vars
+.dev.vars*
+.dev.vars.*
 .env
-.env.local
-.env.*.local
+.env*
+.env.*
+
+# Private company assignment and agent rules (NEVER COMMIT)
+AGENTS.md
+Agents.md
+COMPANY_ASSIGNMENT.md
 *.log
 .DS_Store
 .vscode/
