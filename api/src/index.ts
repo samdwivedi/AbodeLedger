@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { cors } from 'hono/cors'
 import { splitTotal } from './split'
 
 interface CreateHomeBody {
@@ -25,6 +26,9 @@ app.notFound((c) => {
   return c.json({ error: 'Not Found' }, 404)
 })
 
+// Enable Cross-Origin Resource Sharing for decoupled client deployments
+app.use('/api/*', cors())
+
 app.get('/api/health', (c) => c.json({ status: 'ok' }))
 
 // POST /api/homes
@@ -41,6 +45,10 @@ app.post('/api/homes', async (c) => {
   }
 
   const name = body.name.trim()
+  if (name.length > 100) {
+    return c.json({ error: 'Name must be 100 characters or fewer' }, 400)
+  }
+
   const id = crypto.randomUUID()
 
   await c.env.DB.prepare('INSERT INTO homes (id, name) VALUES (?, ?)').bind(id, name).run()
@@ -64,6 +72,9 @@ app.post('/api/homes/:homeId/members', async (c) => {
   }
 
   const name = body.name.trim()
+  if (name.length > 100) {
+    return c.json({ error: 'Name must be 100 characters or fewer' }, 400)
+  }
 
   // Verify home exists
   const home = await c.env.DB.prepare('SELECT id FROM homes WHERE id = ?')
@@ -76,13 +87,30 @@ app.post('/api/homes/:homeId/members', async (c) => {
 
   const memberId = crypto.randomUUID()
 
-  // Atomically assign next position for this home to preserve deterministic member order
-  await c.env.DB.prepare(
-    `INSERT INTO members (id, home_id, name, position)
-     VALUES (?, ?, ?, (SELECT COALESCE(MAX(position), -1) + 1 FROM members WHERE home_id = ?))`,
-  )
-    .bind(memberId, homeId, name, homeId)
-    .run()
+  // Atomically assign next position with retry resilience against concurrent position collisions
+  let inserted = false
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      await c.env.DB.prepare(
+        `INSERT INTO members (id, home_id, name, position)
+         VALUES (?, ?, ?, (SELECT COALESCE(MAX(position), -1) + 1 FROM members WHERE home_id = ?))`,
+      )
+        .bind(memberId, homeId, name, homeId)
+        .run()
+      inserted = true
+      break
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (msg.includes('UNIQUE') && msg.includes('position')) {
+        continue
+      }
+      throw err
+    }
+  }
+
+  if (!inserted) {
+    return c.json({ error: 'Could not allocate member position due to high concurrency' }, 409)
+  }
 
   return c.json({ id: memberId, homeId, name }, 201)
 })
@@ -105,8 +133,18 @@ app.post('/api/homes/:homeId/bills', async (c) => {
     return c.json({ error: 'Title is required' }, 400)
   }
 
-  // Validate totalCents: must be a positive whole number
-  if (typeof totalCents !== 'number' || !Number.isInteger(totalCents) || totalCents <= 0) {
+  const trimmedTitle = title.trim()
+  if (trimmedTitle.length > 200) {
+    return c.json({ error: 'Title must be 200 characters or fewer' }, 400)
+  }
+
+  // Validate totalCents: must be a positive whole number within safe integer boundaries
+  if (
+    typeof totalCents !== 'number' ||
+    !Number.isInteger(totalCents) ||
+    totalCents <= 0 ||
+    totalCents > Number.MAX_SAFE_INTEGER
+  ) {
     return c.json({ error: 'totalCents must be a positive whole number' }, 422)
   }
 
@@ -134,7 +172,6 @@ app.post('/api/homes/:homeId/bills', async (c) => {
   const amounts = splitTotal(totalCents, members.length)
 
   const billId = crypto.randomUUID()
-  const trimmedTitle = title.trim()
 
   // Build atomic batch: insert bill + all shares in one transaction
   const statements = [
@@ -187,6 +224,10 @@ app.post('/api/bills/:billId/shares/:shareId/pay', async (c) => {
   // Validate Idempotency-Key header is present and non-empty
   if (!idempotencyKey || idempotencyKey.trim() === '') {
     return c.json({ error: 'Idempotency-Key header is required' }, 400)
+  }
+
+  if (idempotencyKey.length > 255) {
+    return c.json({ error: 'Idempotency-Key header is too long' }, 400)
   }
 
   // Check if bill exists
@@ -364,12 +405,12 @@ app.get('/api/homes/:homeId/bills', async (c) => {
     .all<{ id: string; homeId: string; title: string; totalCents: number; createdAt: string }>()
 
   const { results: rawShares } = await c.env.DB.prepare(
-    `SELECT s.id, s.bill_id AS billId, s.member_id AS memberId, m.name AS memberName, s.amount_cents AS amountCents, s.paid_at AS paidAt
+    `SELECT s.id, s.bill_id AS billId, s.member_id AS memberId, COALESCE(m.name, 'Member') AS memberName, s.amount_cents AS amountCents, s.paid_at AS paidAt
      FROM shares s
      JOIN bills b ON b.id = s.bill_id
-     JOIN members m ON m.id = s.member_id
+     LEFT JOIN members m ON m.id = s.member_id
      WHERE b.home_id = ?
-     ORDER BY m.position ASC`,
+     ORDER BY COALESCE(m.position, 0) ASC`,
   )
     .bind(homeId)
     .all<{
