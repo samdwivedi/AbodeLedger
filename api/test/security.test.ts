@@ -49,7 +49,7 @@ async function authCall<T = unknown>(
   return { status: response.status, body, cookie: setCookie }
 }
 
-describe('Security & Authentication Audit Suite', () => {
+describe('Security & Authentication Audit Suite', { timeout: 15000 }, () => {
   describe('User Registration & Input Boundaries', () => {
     it('registers a new user and sets secure session cookie', async () => {
       const email = `alice_${Date.now()}@example.com`

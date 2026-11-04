@@ -36,6 +36,14 @@ export function CreateHomeModal({ isOpen, onClose, onSubmit }: CreateHomeModalPr
       return
     }
 
+    // Disallow special characters: letters, numbers, and spaces only
+    if (!/^[a-zA-Z0-9\s]+$/.test(trimmed)) {
+      setError(
+        'Household name cannot contain special characters (only letters, numbers, and spaces allowed)',
+      )
+      return
+    }
+
     setIsSubmitting(true)
     setError(null)
     try {
@@ -100,8 +108,12 @@ export function CreateHomeModal({ isOpen, onClose, onSubmit }: CreateHomeModalPr
                 placeholder="e.g. Green Valley Flat 302"
                 value={name}
                 onChange={(e) => {
-                  setName(e.target.value)
-                  if (error) setError(null)
+                  const val = e.target.value
+                  // Restrict input: letters, numbers, and spaces only (no special characters)
+                  if (/^[a-zA-Z0-9\s]*$/.test(val)) {
+                    setName(val)
+                    if (error) setError(null)
+                  }
                 }}
                 disabled={isSubmitting}
               />
@@ -161,6 +173,14 @@ export function AddMemberModal({ isOpen, onClose, onSubmit }: AddMemberModalProp
     const trimmed = name.trim()
     if (!trimmed) {
       setError('Member name is required')
+      return
+    }
+
+    // Disallow numbers and special characters: letters and spaces only
+    if (!/^[a-zA-Z\s]+$/.test(trimmed)) {
+      setError(
+        'Roommate name can only contain letters and spaces (no numbers or special characters)',
+      )
       return
     }
 
@@ -228,8 +248,12 @@ export function AddMemberModal({ isOpen, onClose, onSubmit }: AddMemberModalProp
                 placeholder="e.g. Priya Sharma"
                 value={name}
                 onChange={(e) => {
-                  setName(e.target.value)
-                  if (error) setError(null)
+                  const val = e.target.value
+                  // Restrict input: letters and spaces only (no numbers or special characters)
+                  if (/^[a-zA-Z\s]*$/.test(val)) {
+                    setName(val)
+                    if (error) setError(null)
+                  }
                 }}
                 disabled={isSubmitting}
               />
@@ -295,6 +319,12 @@ export function CreateBillModal({ isOpen, members, onClose, onSubmit }: CreateBi
     const trimmedTitle = title.trim()
     if (!trimmedTitle) {
       setError('Bill title is required')
+      return
+    }
+
+    // Disallow numbers and special characters: letters and spaces only
+    if (!/^[a-zA-Z\s]+$/.test(trimmedTitle)) {
+      setError('Bill title can only contain letters and spaces (no numbers or special characters)')
       return
     }
 
@@ -370,11 +400,15 @@ export function CreateBillModal({ isOpen, members, onClose, onSubmit }: CreateBi
                 id="bill-title-field"
                 type="text"
                 className="form-input"
-                placeholder="e.g. High-Speed Internet & Electricity"
+                placeholder="e.g. Internet or Electricity"
                 value={title}
                 onChange={(e) => {
-                  setTitle(e.target.value)
-                  if (error) setError(null)
+                  const val = e.target.value
+                  // Restrict input: letters and spaces only (no numbers or special characters)
+                  if (/^[a-zA-Z\s]*$/.test(val)) {
+                    setTitle(val)
+                    if (error) setError(null)
+                  }
                 }}
                 disabled={isSubmitting}
               />

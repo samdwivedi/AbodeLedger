@@ -37,27 +37,43 @@ export function AuthModal({ isOpen, onClose, initialMode = 'login' }: AuthModalP
     e.preventDefault()
     setError(null)
 
-    if (!email.trim() || !password) {
+    const trimmedEmail = email.trim()
+    if (!trimmedEmail || !password) {
       setError('Email and password are required')
       return
     }
 
-    if (mode === 'register' && !name.trim()) {
-      setError('Name is required')
+    // Email format validation
+    if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(trimmedEmail)) {
+      setError('Please enter a valid email address')
       return
     }
 
-    if (mode === 'register' && password.length < 10) {
-      setError('Password must be at least 10 characters long')
-      return
+    if (mode === 'register') {
+      const trimmedName = name.trim()
+      if (!trimmedName) {
+        setError('Name is required')
+        return
+      }
+
+      // Name constraint: No numeric or special characters allowed
+      if (!/^[a-zA-Z\s]+$/.test(trimmedName)) {
+        setError('Name can only contain letters and spaces (no numbers or special characters)')
+        return
+      }
+
+      if (password.length < 10) {
+        setError('Password must be at least 10 characters long')
+        return
+      }
     }
 
     setIsSubmitting(true)
     try {
       if (mode === 'login') {
-        await login(email.trim(), password)
+        await login(trimmedEmail, password)
       } else {
-        await register(email.trim(), password, name.trim())
+        await register(trimmedEmail, password, name.trim())
       }
       onClose()
     } catch (err) {
@@ -116,7 +132,10 @@ export function AuthModal({ isOpen, onClose, initialMode = 'login' }: AuthModalP
             {mode === 'register' && (
               <div className="form-field">
                 <label htmlFor="auth-name" className="form-label">
-                  Your Full Name
+                  Your Full Name{' '}
+                  <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                    (letters only)
+                  </span>
                 </label>
                 <input
                   id="auth-name"
@@ -124,7 +143,14 @@ export function AuthModal({ isOpen, onClose, initialMode = 'login' }: AuthModalP
                   className="form-input"
                   placeholder="e.g. Maya Sharma"
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value
+                    // Restrict input: letters and spaces only
+                    if (/^[a-zA-Z\s]*$/.test(val)) {
+                      setName(val)
+                      if (error) setError(null)
+                    }
+                  }}
                   disabled={isSubmitting}
                   autoComplete="name"
                 />
@@ -141,7 +167,14 @@ export function AuthModal({ isOpen, onClose, initialMode = 'login' }: AuthModalP
                 className="form-input"
                 placeholder="name@example.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value
+                  // Restrict input: valid email characters only
+                  if (/^[a-zA-Z0-9@._+-]*$/.test(val)) {
+                    setEmail(val)
+                    if (error) setError(null)
+                  }
+                }}
                 disabled={isSubmitting}
                 autoComplete="email"
               />

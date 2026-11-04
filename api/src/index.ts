@@ -101,6 +101,9 @@ app.post('/api/auth/register', async (c) => {
   if (trimmedName.length > 100) {
     return c.json({ error: 'Name must be 100 characters or fewer' }, 400)
   }
+  if (!/^[a-zA-Z\s]+$/.test(trimmedName)) {
+    return c.json({ error: 'Name can only contain letters and spaces' }, 400)
+  }
 
   // Validate Email
   if (typeof email !== 'string' || !isValidEmail(email)) {
@@ -399,6 +402,9 @@ app.post('/api/homes', authMiddleware, async (c) => {
   const name = body.name.trim()
   if (name.length > 100) {
     return c.json({ error: 'Name must be 100 characters or fewer' }, 400)
+  }
+  if (!/^[a-zA-Z0-9\s]+$/.test(name)) {
+    return c.json({ error: 'Home name cannot contain special characters' }, 400)
   }
 
   const homeId = crypto.randomUUID()
