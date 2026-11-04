@@ -4,9 +4,7 @@ Welcome to **AbodeLedger** — a production-grade shared bill splitter and finan
 
 ---
 
-## UI Showcase & Application Screenshots
-
-The application features a clean, responsive fintech design system built with a forest green aesthetic (`#153D32`), consistent spacing, and strict financial data integrity.
+.
 
 ### 1. First-Open Authentication & Onboarding Gate
 
