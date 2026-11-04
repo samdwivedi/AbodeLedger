@@ -28,6 +28,8 @@ function DashboardPage() {
   const [members, setMembers] = useState<Member[]>([])
   const [bills, setBills] = useState<Bill[]>([])
   const [balances, setBalances] = useState<Balance[]>([])
+  const [currentHomeRole, setCurrentHomeRole] = useState<'owner' | 'admin' | 'member' | undefined>()
+  const [currentMemberId, setCurrentMemberId] = useState<string | null>(null)
 
   // Loading & Error states
   const [isLoading, setIsLoading] = useState(true)
@@ -84,6 +86,8 @@ function DashboardPage() {
       setMembers(homeData.members || [])
       setBills(billsData || [])
       setBalances(balancesData || [])
+      setCurrentHomeRole(homeData.userRole)
+      setCurrentMemberId(homeData.currentMemberId ?? null)
     } catch (err) {
       setErrorBanner(err instanceof Error ? err.message : 'Error loading apartment details')
     } finally {
@@ -278,9 +282,10 @@ function DashboardPage() {
                   bills={bills}
                   members={members}
                   user={user}
-                  currentHomeRole={currentHome?.userRole}
-                  currentMemberId={currentHome?.currentMemberId}
+                  currentHomeRole={currentHomeRole || currentHome?.userRole}
+                  currentMemberId={currentMemberId || currentHome?.currentMemberId}
                   onOpenCreateBill={() => setIsCreateBillOpen(true)}
+                  onOpenAuth={() => setIsAuthModalOpen(true)}
                   onPayShare={handlePayShare}
                   payingShareIds={payingShareIds}
                   hasMembers={members.length > 0}

@@ -784,16 +784,29 @@ app.get('/api/homes', authMiddleware, async (c) => {
   const user = c.get('user')
 
   const { results: homes } = await c.env.DB.prepare(
-    `SELECT h.id, h.name, h.created_at AS createdAt, COUNT(m.id) AS memberCount
+    `SELECT
+       h.id,
+       h.name,
+       h.created_at AS createdAt,
+       COUNT(m.id) AS memberCount,
+       hm.role AS userRole,
+       hm.member_id AS currentMemberId
      FROM homes h
      JOIN home_memberships hm ON hm.home_id = h.id
      LEFT JOIN members m ON m.home_id = h.id
      WHERE hm.user_id = ?
-     GROUP BY h.id, h.name, h.created_at
+     GROUP BY h.id, h.name, h.created_at, hm.role, hm.member_id
      ORDER BY h.created_at DESC`,
   )
     .bind(user.id)
-    .all<{ id: string; name: string; createdAt: string; memberCount: number }>()
+    .all<{
+      id: string
+      name: string
+      createdAt: string
+      memberCount: number
+      userRole?: string
+      currentMemberId?: string | null
+    }>()
 
   return c.json({ homes }, 200)
 })

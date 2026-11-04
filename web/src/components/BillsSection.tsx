@@ -10,6 +10,7 @@ interface BillsSectionProps {
   currentHomeRole?: 'owner' | 'admin' | 'member'
   currentMemberId?: string | null
   onOpenCreateBill: () => void
+  onOpenAuth?: () => void
   onPayShare: (billId: string, shareId: string) => Promise<void>
   payingShareIds: Set<string>
   hasMembers: boolean
@@ -22,6 +23,7 @@ export function BillsSection({
   currentHomeRole,
   currentMemberId,
   onOpenCreateBill,
+  onOpenAuth,
   onPayShare,
   payingShareIds,
   hasMembers,
@@ -202,7 +204,7 @@ export function BillsSection({
                             (currentMemberId && share.memberId === currentMemberId) ||
                             (user?.name &&
                               memberName.trim().toLowerCase() === user.name.trim().toLowerCase())
-                          const canPay = !isPaid && (isOwnerOrAdmin || isSelf || !currentHomeRole)
+                          const canPay = Boolean(user && !isPaid && (isOwnerOrAdmin || isSelf))
 
                           return (
                             <tr key={share.id}>
@@ -253,7 +255,17 @@ export function BillsSection({
                               </td>
 
                               <td style={{ textAlign: 'right' }}>
-                                {!isPaid && canPay && (
+                                {!isPaid && !user && (
+                                  <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={onOpenAuth}
+                                    style={{ fontSize: 11.5, padding: '3px 8px' }}
+                                  >
+                                    Sign In to Pay
+                                  </button>
+                                )}
+                                {!isPaid && user && canPay && (
                                   <button
                                     type="button"
                                     className="btn btn-pay"
@@ -273,7 +285,7 @@ export function BillsSection({
                                     )}
                                   </button>
                                 )}
-                                {!isPaid && !canPay && (
+                                {!isPaid && user && !canPay && (
                                   <span
                                     style={{
                                       fontSize: 12,

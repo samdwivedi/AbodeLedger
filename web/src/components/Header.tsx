@@ -150,6 +150,19 @@ export function Header({
             >
               {initials}
             </div>
+            <span
+              style={{
+                fontSize: 13,
+                fontWeight: 500,
+                color: 'var(--text-primary)',
+                maxWidth: 120,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {user.name}
+            </span>
             <button
               type="button"
               className="btn btn-secondary btn-sm"
@@ -162,9 +175,9 @@ export function Header({
         ) : (
           <button
             type="button"
-            className="btn btn-secondary btn-sm"
+            className="btn btn-primary btn-sm"
             onClick={onOpenAuth}
-            style={{ fontSize: 12, padding: '4px 10px' }}
+            style={{ fontSize: 12, padding: '6px 12px' }}
           >
             Sign In
           </button>
