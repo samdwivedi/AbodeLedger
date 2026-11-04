@@ -481,6 +481,21 @@ app.post(
       return c.json({ error: 'Could not allocate member position due to high concurrency' }, 409)
     }
 
+    // Auto-link membership.member_id if current user matches the newly added member
+    const user = c.get('user')
+    const membership = c.get('membership')
+    if (
+      membership &&
+      !membership.memberId &&
+      name.trim().toLowerCase() === user.name.trim().toLowerCase()
+    ) {
+      await c.env.DB.prepare(
+        'UPDATE home_memberships SET member_id = ? WHERE home_id = ? AND user_id = ?',
+      )
+        .bind(memberId, homeId, user.id)
+        .run()
+    }
+
     return c.json({ id: memberId, homeId, name }, 201)
   },
 )
@@ -636,6 +651,34 @@ app.post(
       return c.json({ error: 'Share not found' }, 404)
     }
 
+    // Authorization rule: A regular member cannot pay another member's share
+    const user = c.get('user')
+    const membership = c.get('membership')
+
+    if (membership?.role === 'member') {
+      let isOwnShare = false
+      if (membership.memberId) {
+        isOwnShare = membership.memberId === share.member_id
+      } else {
+        const shareMember = await c.env.DB.prepare('SELECT name FROM members WHERE id = ?')
+          .bind(share.member_id)
+          .first<{ name: string }>()
+        if (
+          shareMember &&
+          user.name.trim().toLowerCase() === shareMember.name.trim().toLowerCase()
+        ) {
+          isOwnShare = true
+        }
+      }
+
+      if (!isOwnShare) {
+        return c.json(
+          { error: "You cannot change the payment status of another member's share" },
+          403,
+        )
+      }
+    }
+
     // If already paid, verify idempotency key
     if (share.paid_at !== null) {
       if (share.idempotency_key === idempotencyKey) {
@@ -777,7 +820,16 @@ app.get(
       .bind(homeId)
       .all<{ id: string; name: string; position: number }>()
 
-    return c.json({ ...home, members }, 200)
+    const membership = c.get('membership')
+    return c.json(
+      {
+        ...home,
+        members,
+        userRole: membership?.role,
+        currentMemberId: membership?.memberId,
+      },
+      200,
+    )
   },
 )
 

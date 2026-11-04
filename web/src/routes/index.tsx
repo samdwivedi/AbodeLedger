@@ -277,6 +277,9 @@ function DashboardPage() {
                 <BillsSection
                   bills={bills}
                   members={members}
+                  user={user}
+                  currentHomeRole={currentHome?.userRole}
+                  currentMemberId={currentHome?.currentMemberId}
                   onOpenCreateBill={() => setIsCreateBillOpen(true)}
                   onPayShare={handlePayShare}
                   payingShareIds={payingShareIds}

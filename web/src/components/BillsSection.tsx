@@ -1,11 +1,14 @@
 import { useState } from 'react'
-import type { Bill, Member } from '../api/client'
+import type { Bill, Member, User } from '../api/client'
 import { formatPaise } from '../utils/currency'
 import { IconCheck, IconChevronDown, IconChevronRight, IconReceipt } from './icons'
 
 interface BillsSectionProps {
   bills: Bill[]
   members?: Member[]
+  user?: User | null
+  currentHomeRole?: 'owner' | 'admin' | 'member'
+  currentMemberId?: string | null
   onOpenCreateBill: () => void
   onPayShare: (billId: string, shareId: string) => Promise<void>
   payingShareIds: Set<string>
@@ -15,6 +18,9 @@ interface BillsSectionProps {
 export function BillsSection({
   bills,
   members,
+  user,
+  currentHomeRole,
+  currentMemberId,
   onOpenCreateBill,
   onPayShare,
   payingShareIds,
@@ -190,6 +196,14 @@ export function BillsSection({
                           const memberName = share.memberName || matchedMember?.name || 'Roommate'
                           const avatarInitial = (memberName || 'R').charAt(0).toUpperCase()
 
+                          const isOwnerOrAdmin =
+                            currentHomeRole === 'owner' || currentHomeRole === 'admin'
+                          const isSelf =
+                            (currentMemberId && share.memberId === currentMemberId) ||
+                            (user?.name &&
+                              memberName.trim().toLowerCase() === user.name.trim().toLowerCase())
+                          const canPay = !isPaid && (isOwnerOrAdmin || isSelf || !currentHomeRole)
+
                           return (
                             <tr key={share.id}>
                               <td style={{ fontWeight: 500 }}>
@@ -239,7 +253,7 @@ export function BillsSection({
                               </td>
 
                               <td style={{ textAlign: 'right' }}>
-                                {!isPaid && (
+                                {!isPaid && canPay && (
                                   <button
                                     type="button"
                                     className="btn btn-pay"
@@ -258,6 +272,17 @@ export function BillsSection({
                                       'Pay Share'
                                     )}
                                   </button>
+                                )}
+                                {!isPaid && !canPay && (
+                                  <span
+                                    style={{
+                                      fontSize: 12,
+                                      color: 'var(--text-muted)',
+                                      fontStyle: 'italic',
+                                    }}
+                                  >
+                                    Awaiting {memberName}
+                                  </span>
                                 )}
                                 {isPaid && (
                                   <span

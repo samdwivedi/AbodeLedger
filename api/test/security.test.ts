@@ -407,5 +407,97 @@ describe('Security & Authentication Audit Suite', { timeout: 15000 }, () => {
       })
       expect(ownerAdd.status).toBe(201)
     })
+
+    it("ensures a regular member cannot change the payment status of another member's share", async () => {
+      // 1. Owner registers, creates home, and adds two members: 'Asha' and 'Ben'
+      const owner = await authCall('POST', '/api/auth/register', {
+        body: {
+          email: `owner_share_${Date.now()}@example.com`,
+          password: 'Password123!',
+          name: 'Owner User',
+        },
+      })
+      const home = await authCall<{ id: string }>('POST', '/api/homes', {
+        body: { name: 'Shared Flat' },
+        cookie: owner.cookie,
+      })
+      const ashaMember = await authCall<{ id: string }>(
+        'POST',
+        `/api/homes/${home.body.id}/members`,
+        {
+          body: { name: 'Asha' },
+          cookie: owner.cookie,
+        },
+      )
+      const benMember = await authCall<{ id: string }>(
+        'POST',
+        `/api/homes/${home.body.id}/members`,
+        {
+          body: { name: 'Ben' },
+          cookie: owner.cookie,
+        },
+      )
+
+      // 2. Owner creates bill
+      const bill = await authCall<{ id: string; shares: { id: string; memberId: string }[] }>(
+        'POST',
+        `/api/homes/${home.body.id}/bills`,
+        {
+          body: { title: 'Electricity', totalCents: 1000 },
+          cookie: owner.cookie,
+        },
+      )
+
+      const ashaShare = bill.body.shares.find((s) => s.memberId === ashaMember.body.id)
+      const benShare = bill.body.shares.find((s) => s.memberId === benMember.body.id)
+      expect(ashaShare).toBeDefined()
+      expect(benShare).toBeDefined()
+
+      // 3. User registers as 'Ben' and joins as regular member
+      const benEmail = `ben_${Date.now()}@example.com`
+      const benUser = await authCall('POST', '/api/auth/register', {
+        body: {
+          email: benEmail,
+          password: 'Password123!',
+          name: 'Ben',
+        },
+      })
+      const invite = await authCall<{ token: string }>(
+        'POST',
+        `/api/homes/${home.body.id}/invitations`,
+        {
+          body: { email: benEmail, role: 'member' },
+          cookie: owner.cookie,
+        },
+      )
+      await authCall('POST', `/api/invitations/${invite.body.token}/accept`, {
+        cookie: benUser.cookie,
+      })
+
+      // 4. Ben attempts to pay Asha's share (MUST BE FORBIDDEN 403)
+      const payAshaShare = await authCall(
+        'POST',
+        `/api/bills/${bill.body.id}/shares/${ashaShare?.id}/pay`,
+        {
+          headers: { 'Idempotency-Key': crypto.randomUUID() },
+          cookie: benUser.cookie,
+        },
+      )
+      expect(payAshaShare.status).toBe(403)
+      expect(payAshaShare.body).toEqual({
+        error: "You cannot change the payment status of another member's share",
+      })
+
+      // 5. Ben pays his own share (MUST SUCCEED 200)
+      const payBenShare = await authCall(
+        'POST',
+        `/api/bills/${bill.body.id}/shares/${benShare?.id}/pay`,
+        {
+          headers: { 'Idempotency-Key': crypto.randomUUID() },
+          cookie: benUser.cookie,
+        },
+      )
+      expect(payBenShare.status).toBe(200)
+    })
   })
 })

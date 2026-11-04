@@ -14,6 +14,8 @@ export interface Home {
   name: string
   createdAt?: string
   memberCount: number
+  userRole?: 'owner' | 'admin' | 'member'
+  currentMemberId?: string | null
 }
 
 export interface Member {
