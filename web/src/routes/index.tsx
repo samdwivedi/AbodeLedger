@@ -239,8 +239,24 @@ function DashboardPage() {
     setActiveTab('overview')
   }
 
+  // Support dev preview query parameter for automated documentation screenshots
+  const previewParam =
+    typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).get('preview')
+      : null
+  const isPreview = Boolean(previewParam)
+
+  const effectiveTab: NavTab =
+    isPreview &&
+    (previewParam === 'bills' ||
+      previewParam === 'members' ||
+      previewParam === 'balances' ||
+      previewParam === 'settings')
+      ? previewParam
+      : activeTab
+
   // 1. Splash Screen while restoring auth session
-  if (isAuthLoading) {
+  if (isAuthLoading && !isPreview) {
     return (
       <div
         style={{
@@ -269,11 +285,66 @@ function DashboardPage() {
   // 2. CRITICAL USER REQUIREMENT:
   // "just opeing wesbste first open login page then open rest things"
   // If not authenticated, open the premium login/registration screen directly!
-  if (!isAuthenticated) {
+  if (!isAuthenticated && !isPreview) {
     return <AuthScreen onSuccess={() => loadHomes()} />
   }
 
-  const currentHome = homes.find((h) => h.id === selectedHomeId)
+  // Demo preview fallback data when capturing screenshots
+  const effectiveUser = user || (isPreview ? { id: 'demo-user', name: 'Maya Sharma', email: 'maya@example.com' } : null)
+  const effectiveHomes = homes.length > 0 ? homes : (isPreview ? [{ id: 'demo-home', name: 'Palm Grove Residency 402', createdAt: new Date().toISOString(), memberCount: 3 }] : [])
+  const effectiveHomeId = selectedHomeId || (isPreview ? 'demo-home' : '')
+  const effectiveMembers = members.length > 0 ? members : (isPreview ? [
+    { id: 'm1', homeId: 'demo-home', name: 'SHUBHUMA', position: 1 },
+    { id: 'm2', homeId: 'demo-home', name: 'SHIVAM', position: 2 },
+    { id: 'm3', homeId: 'demo-home', name: 'Maya Sharma', position: 3 },
+  ] : [])
+
+  const effectiveBills: Bill[] = bills.length > 0 ? bills : (isPreview ? [
+    {
+      id: 'b1',
+      homeId: 'demo-home',
+      title: 'High-Speed Fiber Internet',
+      totalCents: 150000,
+      createdAt: new Date().toISOString(),
+      shares: [
+        { id: 's1', billId: 'b1', memberId: 'm1', memberName: 'SHUBHUMA', amountCents: 50000, paidAt: new Date().toISOString() },
+        { id: 's2', billId: 'b1', memberId: 'm2', memberName: 'SHIVAM', amountCents: 50000, paidAt: new Date().toISOString() },
+        { id: 's3', billId: 'b1', memberId: 'm3', memberName: 'Maya Sharma', amountCents: 50000, paidAt: new Date().toISOString() },
+      ],
+    },
+    {
+      id: 'b2',
+      homeId: 'demo-home',
+      title: 'Electricity & Utilities',
+      totalCents: 320000,
+      createdAt: new Date(Date.now() - 86400000 * 2).toISOString(),
+      shares: [
+        { id: 's4', billId: 'b2', memberId: 'm1', memberName: 'SHUBHUMA', amountCents: 106667, paidAt: new Date().toISOString() },
+        { id: 's5', billId: 'b2', memberId: 'm2', memberName: 'SHIVAM', amountCents: 106667, paidAt: null },
+        { id: 's6', billId: 'b2', memberId: 'm3', memberName: 'Maya Sharma', amountCents: 106666, paidAt: null },
+      ],
+    },
+    {
+      id: 'b3',
+      homeId: 'demo-home',
+      title: 'Apartment Monthly Rent',
+      totalCents: 2100000,
+      createdAt: new Date(Date.now() - 86400000 * 5).toISOString(),
+      shares: [
+        { id: 's7', billId: 'b3', memberId: 'm1', memberName: 'SHUBHUMA', amountCents: 700000, paidAt: new Date().toISOString() },
+        { id: 's8', billId: 'b3', memberId: 'm2', memberName: 'SHIVAM', amountCents: 700000, paidAt: null },
+        { id: 's9', billId: 'b3', memberId: 'm3', memberName: 'Maya Sharma', amountCents: 700000, paidAt: new Date().toISOString() },
+      ],
+    },
+  ] : [])
+
+  const effectiveBalances: Balance[] = balances.length > 0 ? balances : (isPreview ? [
+    { memberId: 'm1', name: 'SHUBHUMA', outstandingCents: 0 },
+    { memberId: 'm2', name: 'SHIVAM', outstandingCents: 806667 },
+    { memberId: 'm3', name: 'Maya Sharma', outstandingCents: 106666 },
+  ] : [])
+
+  const currentHome = effectiveHomes.find((h) => h.id === effectiveHomeId)
 
   return (
     <div className="app-shell">

@@ -1,6 +1,209 @@
 # SDE Intern Assignment: Shared Bill Splitter
 
-Welcome. In this assignment you build a small bill splitter for a shared home. It has two parts:
+Welcome to **AbodeLedger** — a production-grade shared bill splitter and financial ledger designed for shared households and modern roommates.
+
+---
+
+## UI Showcase & Application Screenshots
+
+The application features a clean, responsive fintech design system built with a forest green aesthetic (`#153D32`), consistent spacing, and strict financial data integrity.
+
+### 1. First-Open Authentication & Onboarding Gate
+
+Every session is secured with native WebCrypto PBKDF2 password hashing and secure `__Host-session` HttpOnly cookies. New roommates can sign in or create an account with real-time character validation.
+
+![First-Open Authentication Gate](docs/screenshots/01-auth-screen.png)
+
+---
+
+### 2. Real-Time Financial Overview & Analytics
+
+The main dashboard displays real-time key metrics (Total Expenses, Paid Amount, Net Outstanding, Active Roommates), a monthly spending trend chart, expense category distribution, recent household bills, and quick roommate balance snapshots.
+
+![Financial Overview Dashboard](docs/screenshots/02-overview-dashboard.png)
+
+---
+
+### 3. Household Bills & Share Breakdown Drawer
+
+Full expense ledger featuring category badges, interactive search, filters (category, status, roommate), and expandable drawers revealing exact per-member share allocations and individual settlement actions.
+
+![Household Bills & Share Breakdown](docs/screenshots/03-bills-and-shares.png)
+
+---
+
+### 4. Household Roommates & Priority Ranks
+
+Displays registered roommates in the exact insertion order that governs deterministic remainder distribution. Each profile shows assigned total, outstanding balance, and a settlement progress meter.
+
+![Roommates & Priority Ranks](docs/screenshots/04-roommates-members.png)
+
+---
+
+### 5. Settlement Balances & Debt Reconciliation
+
+Complete household outstanding balance summary, historical member debt ledger, and actionable "Who Owes Whom" reconciliation guidance.
+
+![Settlement Balances Ledger](docs/screenshots/05-settlement-balances.png)
+
+---
+
+### 6. Household Settings & Identity Management
+
+Clean household configuration showing active apartment name, copyable UUID, registered member count, and authenticated user profile.
+
+![Household Settings](docs/screenshots/06-household-settings.png)
+
+---
+
+## Architectural & Workflow Diagrams
+
+### 1. End-to-End System Architecture
+
+```mermaid
+flowchart TD
+    subgraph Client ["Client Layer (React 19 + Vite)"]
+        UI["TanStack Router Single Page Application"]
+        State["Auth Context & Ledger State"]
+        ClientAPI["Typed API Client (Fetch + Credentials)"]
+    end
+
+    subgraph Edge ["Edge Network & Middleware"]
+        SessionCookie["HttpOnly Session Cookie (__Host-session)"]
+        IdempotencyHdr["Idempotency-Key Header"]
+    end
+
+    subgraph Runtime ["Cloudflare Workers Runtime"]
+        Router["Hono Framework Router (/api)"]
+        AuthMid["PBKDF2 WebCrypto Auth & Session Verifier"]
+        RBAC["Household Boundary & RBAC Guard"]
+        SplitEngine["Deterministic Remainder Splitter"]
+    end
+
+    subgraph Storage ["Cloudflare D1 (SQLite Database)"]
+        D1["SQLite Engine (Cloudflare D1)"]
+        CK1["ck_bills_total_positive"]
+        CK2["ck_shares_amount_not_negative"]
+        UQ1["uq_shares_bill_member"]
+        UQ2["uq_members_position"]
+        FK["Foreign Keys with CASCADE & ENFORCEMENT"]
+    end
+
+    UI --> State
+    State --> ClientAPI
+    ClientAPI -->|HTTPS Request| SessionCookie
+    ClientAPI -->|Header| IdempotencyHdr
+    SessionCookie --> Router
+    IdempotencyHdr --> Router
+    Router --> AuthMid
+    AuthMid --> RBAC
+    RBAC --> SplitEngine
+    SplitEngine --> D1
+    D1 --- CK1
+    D1 --- CK2
+    D1 --- UQ1
+    D1 --- UQ2
+    D1 --- FK
+```
+
+---
+
+### 2. Deterministic Bill Splitting & Remainder Allocation Workflow
+
+When an expense cannot be divided evenly to the exact paise (e.g. ₹100 split 3 ways), fractional cents are never rounded away or lost. Surplus cents are distributed one-by-one according to deterministic roommate priority order (`position ASC`).
+
+```mermaid
+flowchart TD
+    Start(["POST /api/homes/:homeId/bills"]) --> ParseInput["Parse title & totalCents (Integer Math)"]
+    ParseInput --> ValidateTotal{"totalCents > 0 and integer?"}
+    ValidateTotal -- No --> Err422["Return 422 Unprocessable Entity"]
+    ValidateTotal -- Yes --> FetchMembers["Query members ORDER BY position ASC"]
+    FetchMembers --> HasMembers{"Members Count N > 0?"}
+    HasMembers -- No --> ErrEmpty["Return 422 (Household has no members)"]
+    HasMembers -- Yes --> CalcBase["baseAmount = Math.floor(totalCents / N)"]
+    CalcBase --> CalcRem["remainderCents = totalCents % N"]
+    CalcRem --> LoopMembers["Iterate members in deterministic position order"]
+    LoopMembers --> CheckRank{"member index < remainderCents?"}
+    CheckRank -- Yes --> AssignExtra["share = baseAmount + 1 cent"]
+    CheckRank -- No --> AssignBase["share = baseAmount"]
+    AssignExtra --> Accumulate["Collect share record"]
+    AssignBase --> Accumulate
+    Accumulate --> CheckDone{"All N members processed?"}
+    CheckDone -- No --> LoopMembers
+    CheckDone -- Yes --> InsertAtomic["Execute atomic batch INSERT (bill + N shares)"]
+    InsertAtomic --> VerifySum["Constraint Verified: SUM(shares) == totalCents"]
+    VerifySum --> Respond201(["Return 201 Created with Bill & Shares"])
+```
+
+---
+
+### 3. Payment Concurrency & Idempotency Workflow
+
+Guarantees safe state transitions when network retries occur or when two concurrent requests attempt to settle the same share simultaneously.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Client as Roommate Client
+    participant API as Hono API Worker
+    participant DB as Cloudflare D1 (SQLite)
+
+    Client->>API: POST /api/bills/:billId/shares/:shareId/pay<br/>[Header: Idempotency-Key]
+    
+    alt Idempotency-Key header is missing
+        API-->>Client: 400 Bad Request ("Idempotency-Key header is required")
+    end
+
+    API->>DB: SELECT * FROM shares WHERE id = ? AND bill_id = ?
+    
+    alt Share or Bill does not exist
+        DB-->>API: Not Found
+        API-->>Client: 404 Not Found ("Bill or share not found")
+    else Share already paid
+        DB-->>API: Record found (paid_at != NULL, existing_key)
+        alt existing_key == request Idempotency-Key
+            Note over API,Client: Safe Replay: Identical key returns cached receipt
+            API-->>Client: 200 OK (Previous payment receipt)
+        else existing_key != request Idempotency-Key
+            Note over API,Client: Conflict: Different key attempted on paid share
+            API-->>Client: 409 Conflict ("Share already paid with different key")
+        end
+    else Share unpaid (paid_at is NULL)
+        Note over API,DB: Atomic Conditional State Transition
+        API->>DB: UPDATE shares SET paid_at = ?, idempotency_key = ?<br/>WHERE id = ? AND bill_id = ? AND paid_at IS NULL
+        alt Update succeeded (changes == 1)
+            DB-->>API: 1 row modified
+            API-->>Client: 200 OK (Paid share receipt)
+        else Race condition lost (changes == 0)
+            Note over DB,API: Another concurrent transaction completed first
+            DB-->>API: 0 rows modified
+            API-->>Client: 409 Conflict ("Share already paid")
+        end
+    end
+```
+
+---
+
+### 4. Household Boundary & RBAC Isolation Workflow
+
+```mermaid
+flowchart LR
+    Request["Incoming API Request"] --> Cookie["Extract __Host-session cookie"]
+    Cookie --> SessionCheck{"Valid active session?"}
+    SessionCheck -- No --> AuthErr["401 Unauthorized"]
+    SessionCheck -- Yes --> ExtractHome["Extract requested :homeId"]
+    ExtractHome --> MemberCheck{"User is member or owner of homeId?"}
+    MemberCheck -- No --> Deny["403 Forbidden (Anti-IDOR boundary)"]
+    MemberCheck -- Yes --> ActionCheck{"Permitted Action?"}
+    ActionCheck -- Pay Own Share / View Ledger --> Allow["Execute Request with 200/201"]
+    ActionCheck -- Modify Other Member's Share --> Block["403 Forbidden (Share Isolation)"]
+```
+
+---
+
+## Assignment Overview
+
+It has two parts:
 
 1. **Homes and members:** create a home and add members to it.
 2. **Bill splitting:** split a bill between the members. Each member pays their own share.
