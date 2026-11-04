@@ -58,11 +58,37 @@ app.notFound((c) => {
   return c.json({ error: 'Not Found' }, 404)
 })
 
-// Enable Cross-Origin Resource Sharing with credentials support for frontend
+function isLocalOrigin(origin: string): boolean {
+  try {
+    const url = new URL(origin)
+    return url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '[::1]'
+  } catch {
+    return false
+  }
+}
+
+// Enable Cross-Origin Resource Sharing with credentials support
+// Allows exact production Pages origin while keeping local development origins separate
 app.use(
   '/api/*',
   cors({
-    origin: (origin) => origin || '*',
+    origin: (origin, c) => {
+      if (!origin) return null
+
+      // Exact production Pages origin (configured via PAGES_ORIGIN environment variable)
+      const prodOrigin = c.env?.PAGES_ORIGIN || 'https://abodeledger.pages.dev'
+      if (origin === prodOrigin) {
+        return origin
+      }
+
+      // Allow local development origins separately
+      if (isLocalOrigin(origin)) {
+        return origin
+      }
+
+      // Reject all unauthorized third-party origins
+      return null
+    },
     credentials: true,
     allowHeaders: [
       'Content-Type',

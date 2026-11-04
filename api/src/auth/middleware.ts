@@ -22,7 +22,9 @@ export interface HomeMembership {
 }
 
 export interface AuthEnv {
-  Bindings: Env
+  Bindings: Env & {
+    PAGES_ORIGIN?: string
+  }
   Variables: {
     user: AuthUser
     session: AuthSession
@@ -35,12 +37,18 @@ const DEV_SESSION_COOKIE_NAME = 'session'
 const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60 // 7 days
 
 /**
+ * Checks if request is secure over HTTPS or via TLS-terminating reverse proxy.
+ */
+export function isSecureHttps(c: Context): boolean {
+  return c.req.url.startsWith('https://') || c.req.header('x-forwarded-proto') === 'https'
+}
+
+/**
  * Resolves appropriate cookie name based on protocol (HTTPS vs HTTP localhost).
  */
 export function getSessionCookieName(c: Context): string {
   try {
-    const url = new URL(c.req.url)
-    return url.protocol === 'https:' ? SESSION_COOKIE_NAME : DEV_SESSION_COOKIE_NAME
+    return isSecureHttps(c) ? SESSION_COOKIE_NAME : DEV_SESSION_COOKIE_NAME
   } catch {
     return DEV_SESSION_COOKIE_NAME
   }
@@ -50,7 +58,7 @@ export function getSessionCookieName(c: Context): string {
  * Securely writes session cookie to response.
  */
 export function setSessionCookie(c: Context, rawToken: string, maxAge = SESSION_MAX_AGE_SECONDS) {
-  const isHttps = c.req.url.startsWith('https://')
+  const isHttps = isSecureHttps(c)
   const cookieName = isHttps ? SESSION_COOKIE_NAME : DEV_SESSION_COOKIE_NAME
 
   setCookie(c, cookieName, rawToken, {
@@ -66,7 +74,7 @@ export function setSessionCookie(c: Context, rawToken: string, maxAge = SESSION_
  * Clears session cookie on logout or invalidation.
  */
 export function clearSessionCookie(c: Context) {
-  const isHttps = c.req.url.startsWith('https://')
+  const isHttps = isSecureHttps(c)
   const cookieName = isHttps ? SESSION_COOKIE_NAME : DEV_SESSION_COOKIE_NAME
 
   setCookie(c, cookieName, '', {
