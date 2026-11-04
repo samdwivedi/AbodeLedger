@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, api, type Balance, type Bill, type Home, type Member } from '../api/client'
+import { AuthModal } from '../components/AuthModal'
 import { BalancesSection } from '../components/BalancesSection'
 import { BillsSection } from '../components/BillsSection'
 import { Header } from '../components/Header'
@@ -10,12 +11,14 @@ import { AddMemberModal, CreateBillModal, CreateHomeModal } from '../components/
 import { OverviewSection } from '../components/OverviewSection'
 import { SettingsSection } from '../components/SettingsSection'
 import { type NavTab, Sidebar } from '../components/Sidebar'
+import { useAuth } from '../context/AuthContext'
 
 export const Route = createFileRoute('/')({
   component: DashboardPage,
 })
 
 function DashboardPage() {
+  const { user, logout } = useAuth()
   const [activeTab, setActiveTab] = useState<NavTab>('overview')
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
 
@@ -34,6 +37,7 @@ function DashboardPage() {
   const [isCreateHomeOpen, setIsCreateHomeOpen] = useState(false)
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false)
   const [isCreateBillOpen, setIsCreateBillOpen] = useState(false)
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
 
   // Payment in-flight and idempotency tracking
   const [payingShareIds, setPayingShareIds] = useState<Set<string>>(new Set())
@@ -47,6 +51,11 @@ function DashboardPage() {
       setHomes(homeList)
       if (homeList.length > 0 && !selectedHomeId) {
         setSelectedHomeId(homeList[0]?.id ?? '')
+      } else if (homeList.length === 0) {
+        setSelectedHomeId('')
+        setMembers([])
+        setBills([])
+        setBalances([])
       }
     } catch (err) {
       setErrorBanner(
@@ -167,6 +176,12 @@ function DashboardPage() {
     }
   }
 
+  const handleLogout = async () => {
+    await logout()
+    setSelectedHomeId('')
+    await loadHomes()
+  }
+
   const currentHome = homes.find((h) => h.id === selectedHomeId)
 
   return (
@@ -185,10 +200,13 @@ function DashboardPage() {
           activeTab={activeTab}
           homes={homes}
           selectedHomeId={selectedHomeId}
+          user={user}
           onSelectHome={setSelectedHomeId}
           onOpenCreateHome={() => setIsCreateHomeOpen(true)}
           onOpenCreateBill={() => setIsCreateBillOpen(true)}
           onToggleMobileMenu={() => setIsMobileNavOpen((prev) => !prev)}
+          onOpenAuth={() => setIsAuthModalOpen(true)}
+          onLogout={handleLogout}
         />
 
         {/* Page Content */}
@@ -302,6 +320,8 @@ function DashboardPage() {
         onClose={() => setIsCreateBillOpen(false)}
         onSubmit={handleCreateBill}
       />
+
+      <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
     </div>
   )
 }

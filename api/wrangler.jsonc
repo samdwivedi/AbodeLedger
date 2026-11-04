@@ -11,7 +11,7 @@
     {
       "binding": "DB",
       "database_name": "bill-splitter",
-      "database_id": "local-only",
+      "database_id": "419a9115-ba6e-47f4-b4ea-a57ad4664d74",
       "migrations_dir": "migrations"
     }
   ]

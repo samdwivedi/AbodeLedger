@@ -3,6 +3,12 @@
  * Connects to Hono endpoints over Cloudflare Workers
  */
 
+export interface User {
+  id: string
+  email: string
+  name: string
+}
+
 export interface Home {
   id: string
   name: string
@@ -41,6 +47,15 @@ export interface Balance {
   outstandingCents: number
 }
 
+export interface Invitation {
+  id: string
+  homeId: string
+  email: string
+  role: 'admin' | 'member'
+  token: string
+  expiresAt: string
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -58,7 +73,17 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     headers.set('Content-Type', 'application/json')
   }
 
-  const response = await fetch(path, { ...options, headers })
+  // Enforce CSRF defense custom header for all client API requests
+  if (!headers.has('X-Requested-With')) {
+    headers.set('X-Requested-With', 'XMLHttpRequest')
+  }
+
+  // Include credentials (HttpOnly session cookies) on all fetch requests
+  const response = await fetch(path, {
+    ...options,
+    headers,
+    credentials: 'include',
+  })
 
   let json: unknown
   try {
@@ -77,6 +102,59 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
+  // Authentication
+  register: async (email: string, password: string, name: string): Promise<{ user: User }> => {
+    return request<{ user: User }>('/api/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ email, password, name }),
+    })
+  },
+
+  login: async (email: string, password: string): Promise<{ user: User }> => {
+    return request<{ user: User }>('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password }),
+    })
+  },
+
+  logout: async (): Promise<void> => {
+    await request<{ message: string }>('/api/auth/logout', {
+      method: 'POST',
+    })
+  },
+
+  getMe: async (): Promise<User | null> => {
+    try {
+      const res = await request<{ user: User }>('/api/auth/me')
+      return res.user
+    } catch {
+      return null
+    }
+  },
+
+  // Invitations
+  createInvitation: async (
+    homeId: string,
+    email: string,
+    role: 'admin' | 'member',
+  ): Promise<Invitation> => {
+    return request<Invitation>(`/api/homes/${homeId}/invitations`, {
+      method: 'POST',
+      body: JSON.stringify({ email, role }),
+    })
+  },
+
+  acceptInvitation: async (
+    token: string,
+  ): Promise<{ success: boolean; homeId: string; role: string }> => {
+    return request<{ success: boolean; homeId: string; role: string }>(
+      `/api/invitations/${token}/accept`,
+      {
+        method: 'POST',
+      },
+    )
+  },
+
   // Homes
   getHomes: async (): Promise<Home[]> => {
     const res = await request<{ homes: Home[] }>('/api/homes')

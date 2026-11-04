@@ -1,4 +1,4 @@
-import type { Home } from '../api/client'
+import type { Home, User } from '../api/client'
 import { IconBuilding, IconMenu, IconPlus } from './icons'
 import type { NavTab } from './Sidebar'
 
@@ -6,20 +6,26 @@ interface HeaderProps {
   activeTab: NavTab
   homes: Home[]
   selectedHomeId: string
+  user: User | null
   onSelectHome: (homeId: string) => void
   onOpenCreateHome: () => void
   onOpenCreateBill: () => void
   onToggleMobileMenu: () => void
+  onOpenAuth: () => void
+  onLogout: () => void
 }
 
 export function Header({
   activeTab,
   homes,
   selectedHomeId,
+  user,
   onSelectHome,
   onOpenCreateHome,
   onOpenCreateBill,
   onToggleMobileMenu,
+  onOpenAuth,
+  onLogout,
 }: HeaderProps) {
   const getPageTitle = (tab: NavTab): string => {
     switch (tab) {
@@ -35,6 +41,15 @@ export function Header({
         return 'Settings'
     }
   }
+
+  const initials = user?.name
+    ? user.name
+        .split(' ')
+        .map((n) => n[0])
+        .slice(0, 2)
+        .join('')
+        .toUpperCase()
+    : 'AL'
 
   return (
     <header className="top-header">
@@ -114,25 +129,46 @@ export function Header({
           <span>Create Bill</span>
         </button>
 
-        {/* Avatar Placeholder */}
-        <div
-          style={{
-            width: 32,
-            height: 32,
-            borderRadius: '50%',
-            background: 'var(--bg-subtle)',
-            border: '1px solid var(--border-light)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 12,
-            fontWeight: 600,
-            color: 'var(--text-secondary)',
-          }}
-          title="Account profile"
-        >
-          AL
-        </div>
+        {/* Authentication State & Profile */}
+        {user ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: '50%',
+                background: 'var(--primary-subtle, rgba(37, 99, 235, 0.1))',
+                border: '1px solid var(--border-light)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 12,
+                fontWeight: 600,
+                color: 'var(--primary)',
+              }}
+              title={`${user.name} (${user.email})`}
+            >
+              {initials}
+            </div>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={onLogout}
+              style={{ fontSize: 12, padding: '4px 8px' }}
+            >
+              Sign Out
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={onOpenAuth}
+            style={{ fontSize: 12, padding: '4px 10px' }}
+          >
+            Sign In
+          </button>
+        )}
       </div>
     </header>
   )
