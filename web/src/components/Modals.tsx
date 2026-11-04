@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import type { Member } from '../api/client'
 import { formatPaise, parseRupeesToPaise, previewSplit } from '../utils/currency'
-import { IconX } from './icons'
+import { IconScale, IconX } from './icons'
 
 /* ==========================================================================
-   Create Home Modal
+   Create Household Modal
    ========================================================================== */
 interface CreateHomeModalProps {
   isOpen: boolean
@@ -32,14 +32,14 @@ export function CreateHomeModal({ isOpen, onClose, onSubmit }: CreateHomeModalPr
     e.preventDefault()
     const trimmed = name.trim()
     if (!trimmed) {
-      setError('Home name is required')
+      setError('Household name is required.')
       return
     }
 
-    // Disallow special characters: letters, numbers, and spaces only
+    // Letters, numbers, and spaces only
     if (!/^[a-zA-Z0-9\s]+$/.test(trimmed)) {
       setError(
-        'Household name cannot contain special characters (only letters, numbers, and spaces allowed)',
+        'Household name cannot contain special characters (letters, numbers, and spaces only).',
       )
       return
     }
@@ -51,7 +51,7 @@ export function CreateHomeModal({ isOpen, onClose, onSubmit }: CreateHomeModalPr
       setName('')
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create home')
+      setError(err instanceof Error ? err.message : 'Failed to create household.')
     } finally {
       setIsSubmitting(false)
     }
@@ -62,7 +62,7 @@ export function CreateHomeModal({ isOpen, onClose, onSubmit }: CreateHomeModalPr
       <button
         type="button"
         className="modal-backdrop-btn"
-        aria-label="Close modal background"
+        aria-label="Close modal backdrop"
         onClick={onClose}
         style={{
           position: 'absolute',
@@ -78,11 +78,10 @@ export function CreateHomeModal({ isOpen, onClose, onSubmit }: CreateHomeModalPr
         className="modal-dialog"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="create-home-title"
-        style={{ position: 'relative', zIndex: 1 }}
+        aria-labelledby="create-home-modal-title"
       >
         <div className="modal-header">
-          <span id="create-home-title" className="modal-title">
+          <span id="create-home-modal-title" className="modal-title">
             Create Household
           </span>
           <button
@@ -90,6 +89,7 @@ export function CreateHomeModal({ isOpen, onClose, onSubmit }: CreateHomeModalPr
             className="btn btn-secondary btn-sm"
             onClick={onClose}
             aria-label="Close dialog"
+            style={{ padding: 6 }}
           >
             <IconX size={16} />
           </button>
@@ -98,18 +98,17 @@ export function CreateHomeModal({ isOpen, onClose, onSubmit }: CreateHomeModalPr
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
             <div className="form-field">
-              <label htmlFor="home-name-input" className="form-label">
+              <label htmlFor="home-name-modal-input" className="form-label">
                 Apartment / Home Name
               </label>
               <input
-                id="home-name-input"
+                id="home-name-modal-input"
                 type="text"
                 className="form-input"
-                placeholder="e.g. Green Valley Flat 302"
+                placeholder="e.g. Palm Grove Residency 402"
                 value={name}
                 onChange={(e) => {
                   const val = e.target.value
-                  // Restrict input: letters, numbers, and spaces only (no special characters)
                   if (/^[a-zA-Z0-9\s]*$/.test(val)) {
                     setName(val)
                     if (error) setError(null)
@@ -119,7 +118,8 @@ export function CreateHomeModal({ isOpen, onClose, onSubmit }: CreateHomeModalPr
               />
               {error && <div className="form-error">{error}</div>}
               <span className="form-hint">
-                You can add household members and split bills after creating.
+                Letters, numbers, and spaces only. You can add roommates and split expenses once
+                created.
               </span>
             </div>
           </div>
@@ -134,7 +134,14 @@ export function CreateHomeModal({ isOpen, onClose, onSubmit }: CreateHomeModalPr
               Cancel
             </button>
             <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
-              {isSubmitting ? <span className="spinner" /> : 'Create Home'}
+              {isSubmitting ? (
+                <>
+                  <span className="spinner" />
+                  <span>Creating...</span>
+                </>
+              ) : (
+                'Create Household'
+              )}
             </button>
           </div>
         </form>
@@ -144,7 +151,7 @@ export function CreateHomeModal({ isOpen, onClose, onSubmit }: CreateHomeModalPr
 }
 
 /* ==========================================================================
-   Add Member Modal
+   Add Roommate Modal
    ========================================================================== */
 interface AddMemberModalProps {
   isOpen: boolean
@@ -172,14 +179,14 @@ export function AddMemberModal({ isOpen, onClose, onSubmit }: AddMemberModalProp
     e.preventDefault()
     const trimmed = name.trim()
     if (!trimmed) {
-      setError('Member name is required')
+      setError('Roommate name is required.')
       return
     }
 
-    // Disallow numbers and special characters: letters and spaces only
+    // Letters and spaces only
     if (!/^[a-zA-Z\s]+$/.test(trimmed)) {
       setError(
-        'Roommate name can only contain letters and spaces (no numbers or special characters)',
+        'Roommate name can only contain letters and spaces (no numbers or special characters).',
       )
       return
     }
@@ -191,7 +198,7 @@ export function AddMemberModal({ isOpen, onClose, onSubmit }: AddMemberModalProp
       setName('')
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to add member')
+      setError(err instanceof Error ? err.message : 'Failed to add roommate.')
     } finally {
       setIsSubmitting(false)
     }
@@ -202,7 +209,7 @@ export function AddMemberModal({ isOpen, onClose, onSubmit }: AddMemberModalProp
       <button
         type="button"
         className="modal-backdrop-btn"
-        aria-label="Close modal background"
+        aria-label="Close modal backdrop"
         onClick={onClose}
         style={{
           position: 'absolute',
@@ -218,11 +225,10 @@ export function AddMemberModal({ isOpen, onClose, onSubmit }: AddMemberModalProp
         className="modal-dialog"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="add-member-title"
-        style={{ position: 'relative', zIndex: 1 }}
+        aria-labelledby="add-member-modal-title"
       >
         <div className="modal-header">
-          <span id="add-member-title" className="modal-title">
+          <span id="add-member-modal-title" className="modal-title">
             Add Roommate
           </span>
           <button
@@ -230,6 +236,7 @@ export function AddMemberModal({ isOpen, onClose, onSubmit }: AddMemberModalProp
             className="btn btn-secondary btn-sm"
             onClick={onClose}
             aria-label="Close dialog"
+            style={{ padding: 6 }}
           >
             <IconX size={16} />
           </button>
@@ -238,18 +245,17 @@ export function AddMemberModal({ isOpen, onClose, onSubmit }: AddMemberModalProp
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
             <div className="form-field">
-              <label htmlFor="member-name-field" className="form-label">
-                Roommate Name
+              <label htmlFor="member-name-modal-input" className="form-label">
+                Roommate Full Name
               </label>
               <input
-                id="member-name-field"
+                id="member-name-modal-input"
                 type="text"
                 className="form-input"
-                placeholder="e.g. Priya Sharma"
+                placeholder="e.g. Ananya Patel"
                 value={name}
                 onChange={(e) => {
                   const val = e.target.value
-                  // Restrict input: letters and spaces only (no numbers or special characters)
                   if (/^[a-zA-Z\s]*$/.test(val)) {
                     setName(val)
                     if (error) setError(null)
@@ -259,7 +265,8 @@ export function AddMemberModal({ isOpen, onClose, onSubmit }: AddMemberModalProp
               />
               {error && <div className="form-error">{error}</div>}
               <span className="form-hint">
-                Roommates participate in equal bill splits in order of addition.
+                Roommates participate in bill splits. The order of addition determines FIFO
+                remainder cent allocation.
               </span>
             </div>
           </div>
@@ -274,7 +281,14 @@ export function AddMemberModal({ isOpen, onClose, onSubmit }: AddMemberModalProp
               Cancel
             </button>
             <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
-              {isSubmitting ? <span className="spinner" /> : 'Add Member'}
+              {isSubmitting ? (
+                <>
+                  <span className="spinner" />
+                  <span>Adding...</span>
+                </>
+              ) : (
+                'Add Roommate'
+              )}
             </button>
           </div>
         </form>
@@ -284,7 +298,7 @@ export function AddMemberModal({ isOpen, onClose, onSubmit }: AddMemberModalProp
 }
 
 /* ==========================================================================
-   Create Bill Modal with Real-time Fair Share Preview
+   Split Household Bill Modal with Real-time Fair Split Preview
    ========================================================================== */
 interface CreateBillModalProps {
   isOpen: boolean
@@ -318,23 +332,30 @@ export function CreateBillModal({ isOpen, members, onClose, onSubmit }: CreateBi
     e.preventDefault()
     const trimmedTitle = title.trim()
     if (!trimmedTitle) {
-      setError('Bill title is required')
+      setError('Bill title is required.')
       return
     }
 
-    // Disallow numbers and special characters: letters and spaces only
+    // Letters and spaces only
     if (!/^[a-zA-Z\s]+$/.test(trimmedTitle)) {
-      setError('Bill title can only contain letters and spaces (no numbers or special characters)')
+      setError('Bill title can only contain letters and spaces (no numbers or special characters).')
       return
     }
 
     if (!parsedPaise || parsedPaise <= 0) {
-      setError('Please enter a valid positive bill amount in rupees (e.g. 1500.00)')
+      setError('Please enter a valid positive bill amount in rupees (e.g. 1500.00).')
       return
     }
 
     if (members.length === 0) {
-      setError('Please add at least one household member before creating a bill')
+      setError('Please add at least one household member before creating a bill.')
+      return
+    }
+
+    // Verify shares add up exactly to the total bill amount
+    const sumShares = previewShares.reduce((a, b) => a + b, 0)
+    if (sumShares !== parsedPaise) {
+      setError('Internal precision mismatch: shares do not sum to total bill amount.')
       return
     }
 
@@ -346,7 +367,7 @@ export function CreateBillModal({ isOpen, members, onClose, onSubmit }: CreateBi
       setAmountRupees('')
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create bill')
+      setError(err instanceof Error ? err.message : 'Failed to split bill.')
     } finally {
       setIsSubmitting(false)
     }
@@ -357,7 +378,7 @@ export function CreateBillModal({ isOpen, members, onClose, onSubmit }: CreateBi
       <button
         type="button"
         className="modal-backdrop-btn"
-        aria-label="Close modal background"
+        aria-label="Close modal backdrop"
         onClick={onClose}
         style={{
           position: 'absolute',
@@ -373,18 +394,18 @@ export function CreateBillModal({ isOpen, members, onClose, onSubmit }: CreateBi
         className="modal-dialog"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="create-bill-title"
-        style={{ position: 'relative', zIndex: 1 }}
+        aria-labelledby="create-bill-modal-title"
       >
         <div className="modal-header">
-          <span id="create-bill-title" className="modal-title">
-            Split Household Bill
+          <span id="create-bill-modal-title" className="modal-title">
+            Split Household Expense
           </span>
           <button
             type="button"
             className="btn btn-secondary btn-sm"
             onClick={onClose}
             aria-label="Close dialog"
+            style={{ padding: 6 }}
           >
             <IconX size={16} />
           </button>
@@ -392,19 +413,19 @@ export function CreateBillModal({ isOpen, members, onClose, onSubmit }: CreateBi
 
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
+            {/* Bill Description */}
             <div className="form-field">
-              <label htmlFor="bill-title-field" className="form-label">
-                Bill Title
+              <label htmlFor="bill-title-modal-input" className="form-label">
+                Expense Title
               </label>
               <input
-                id="bill-title-field"
+                id="bill-title-modal-input"
                 type="text"
                 className="form-input"
-                placeholder="e.g. Internet or Electricity"
+                placeholder="e.g. Fiber Internet, Electricity, Apartment Rent"
                 value={title}
                 onChange={(e) => {
                   const val = e.target.value
-                  // Restrict input: letters and spaces only (no numbers or special characters)
                   if (/^[a-zA-Z\s]*$/.test(val)) {
                     setTitle(val)
                     if (error) setError(null)
@@ -412,14 +433,16 @@ export function CreateBillModal({ isOpen, members, onClose, onSubmit }: CreateBi
                 }}
                 disabled={isSubmitting}
               />
+              <span className="form-hint">Letters and spaces only.</span>
             </div>
 
+            {/* Bill Amount */}
             <div className="form-field">
-              <label htmlFor="bill-amount-field" className="form-label">
-                Total Amount (₹)
+              <label htmlFor="bill-amount-modal-input" className="form-label">
+                Total Bill Amount (₹)
               </label>
               <input
-                id="bill-amount-field"
+                id="bill-amount-modal-input"
                 type="number"
                 step="0.01"
                 min="0.01"
@@ -433,7 +456,7 @@ export function CreateBillModal({ isOpen, members, onClose, onSubmit }: CreateBi
                 disabled={isSubmitting}
               />
               <span className="form-hint">
-                The total amount will be split fairly among all {members.length} household member
+                Will be divided equally across all {members.length} registered roommate
                 {members.length === 1 ? '' : 's'}.
               </span>
             </div>
@@ -444,29 +467,55 @@ export function CreateBillModal({ isOpen, members, onClose, onSubmit }: CreateBi
               </div>
             )}
 
-            {/* Split Preview before submission */}
+            {/* Real-time Fair Split Preview */}
             {previewShares.length > 0 && (
               <div className="split-preview-box">
-                <div className="split-preview-header">Share Distribution Preview</div>
+                <div className="split-preview-header">
+                  Fair Share Distribution ({members.length} Roommates)
+                </div>
                 <div className="split-preview-list">
                   {members.map((member, i) => (
                     <div key={member.id} className="split-preview-item">
-                      <span>{member.name}</span>
-                      <span style={{ fontWeight: 600 }}>{formatPaise(previewShares[i] ?? 0)}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div
+                          className="user-avatar"
+                          style={{
+                            width: 22,
+                            height: 22,
+                            fontSize: 10,
+                            background: 'var(--surface)',
+                            color: 'var(--primary-forest)',
+                            border: '1px solid var(--border)',
+                          }}
+                        >
+                          {member.name ? member.name.charAt(0).toUpperCase() : 'M'}
+                        </div>
+                        <span>{member.name}</span>
+                      </div>
+                      <span style={{ fontWeight: 700, color: 'var(--primary-forest)' }}>
+                        {formatPaise(previewShares[i] ?? 0)}
+                      </span>
                     </div>
                   ))}
                 </div>
+
                 {parsedPaise && parsedPaise % members.length !== 0 && (
                   <div
                     style={{
                       fontSize: 11,
-                      color: 'var(--text-muted)',
+                      color: 'var(--text-secondary)',
                       marginTop: 8,
-                      borderTop: '1px solid var(--border-light)',
+                      borderTop: '1px solid var(--border)',
                       paddingTop: 6,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
                     }}
                   >
-                    * Extra remainder paise distributed in order of member registration.
+                    <IconScale size={13} color="var(--secondary-green)" />
+                    <span>
+                      1-paise remainder units awarded to earlier-registered roommates in FIFO order.
+                    </span>
                   </div>
                 )}
               </div>
@@ -488,11 +537,14 @@ export function CreateBillModal({ isOpen, members, onClose, onSubmit }: CreateBi
               disabled={isSubmitting || members.length === 0}
             >
               {isSubmitting ? (
-                <span className="spinner" />
+                <>
+                  <span className="spinner" />
+                  <span>Splitting...</span>
+                </>
               ) : members.length === 0 ? (
-                'Add members first'
+                'Add roommates first'
               ) : (
-                'Create Bill'
+                'Split Bill'
               )}
             </button>
           </div>

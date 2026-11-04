@@ -1,17 +1,41 @@
-import type { Home } from '../api/client'
+import { useState } from 'react'
+import type { Home, Member, User } from '../api/client'
+import { IconBuilding, IconCheck, IconCopy, IconLogOut, IconUsers } from './icons'
 
 interface SettingsSectionProps {
   currentHome: Home | undefined
+  members: Member[]
+  user: User | null
+  currentHomeRole?: string
+  onLogout: () => void
 }
 
-export function SettingsSection({ currentHome }: SettingsSectionProps) {
+export function SettingsSection({
+  currentHome,
+  members,
+  user,
+  currentHomeRole,
+  onLogout,
+}: SettingsSectionProps) {
+  const [copiedId, setCopiedId] = useState(false)
+
+  const handleCopyId = () => {
+    if (!currentHome?.id) return
+    navigator.clipboard.writeText(currentHome.id)
+    setCopiedId(true)
+    setTimeout(() => setCopiedId(false), 2000)
+  }
+
+  const liveMemberCount = members.length
+
   return (
     <div>
-      <div style={{ marginBottom: 24 }}>
-        <h1 className="page-heading">Household Settings</h1>
-        <p className="page-subheading" style={{ marginBottom: 0 }}>
-          Configuration details and ledger properties for the active apartment.
-        </p>
+      {/* Header */}
+      <div className="page-intro">
+        <div>
+          <h1 className="page-heading">Household Settings</h1>
+          <p className="page-subheading">Configuration details and active account parameters.</p>
+        </div>
       </div>
 
       <div
@@ -21,101 +45,185 @@ export function SettingsSection({ currentHome }: SettingsSectionProps) {
           gap: 20,
         }}
       >
-        {/* Apartment Details */}
+        {/* Household Information Card */}
         <div className="card card-padding">
-          <h2 className="section-heading">Household Information</h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+            <div
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 'var(--radius-sm)',
+                background: 'var(--surface-subtle)',
+                color: 'var(--secondary-green)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <IconBuilding size={18} />
+            </div>
+            <div>
+              <h2 className="section-heading" style={{ margin: 0 }}>
+                Household Information
+              </h2>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                Active apartment parameters
+              </div>
+            </div>
+          </div>
 
           <div className="form-field">
-            <span className="form-label">Apartment / Home Name</span>
+            <label htmlFor="settings-home-name" className="form-label">
+              Household Name
+            </label>
             <input
+              id="settings-home-name"
               type="text"
               className="form-input"
               value={currentHome?.name || 'No home selected'}
               disabled
-              style={{ background: 'var(--bg-subtle)' }}
             />
           </div>
 
           <div className="form-field">
-            <span className="form-label">Unique Household ID</span>
-            <input
-              type="text"
-              className="form-input"
-              value={currentHome?.id || '—'}
-              disabled
-              style={{
-                background: 'var(--bg-subtle)',
-                fontFamily: 'var(--font-mono)',
-                fontSize: 12,
-              }}
-            />
+            <label htmlFor="settings-home-id" className="form-label">
+              Unique Household UUID
+            </label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                id="settings-home-id"
+                type="text"
+                className="form-input"
+                value={currentHome?.id || '—'}
+                disabled
+                style={{
+                  fontFamily: 'var(--font-mono)',
+                  fontSize: 12,
+                }}
+              />
+              {currentHome?.id && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={handleCopyId}
+                  title="Copy Household ID"
+                >
+                  {copiedId ? (
+                    <IconCheck size={16} color="var(--success)" />
+                  ) : (
+                    <IconCopy size={16} />
+                  )}
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="form-field">
-            <span className="form-label">Total Roommates</span>
+            <label htmlFor="settings-roommates-count" className="form-label">
+              Registered Roommates
+            </label>
             <input
+              id="settings-roommates-count"
               type="text"
               className="form-input"
-              value={`${currentHome?.memberCount ?? 0} members registered`}
+              value={`${liveMemberCount} roommate${liveMemberCount === 1 ? '' : 's'} registered in this household`}
               disabled
-              style={{ background: 'var(--bg-subtle)' }}
             />
+            <span className="form-hint">
+              Synchronized directly with active member ledger records.
+            </span>
           </div>
         </div>
 
-        {/* Ledger & Technical Architecture */}
+        {/* User Account & Session Profile */}
         <div className="card card-padding">
-          <h2 className="section-heading">Financial Ledger Engine</h2>
-
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 12,
-              fontSize: 13,
-            }}
-          >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
             <div
               style={{
-                padding: '10px 12px',
-                background: 'var(--bg-subtle)',
+                width: 32,
+                height: 32,
                 borderRadius: 'var(--radius-sm)',
+                background: 'var(--surface-subtle)',
+                color: 'var(--secondary-green)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
             >
-              <div style={{ fontWeight: 600 }}>Currency System</div>
-              <div style={{ color: 'var(--text-secondary)', marginTop: 2 }}>
-                Indian Rupee (₹) presentation layer over integer paise storage. Exact conservation
-                with zero floating-point drift.
-              </div>
+              <IconUsers size={18} />
             </div>
-
-            <div
-              style={{
-                padding: '10px 12px',
-                background: 'var(--bg-subtle)',
-                borderRadius: 'var(--radius-sm)',
-              }}
-            >
-              <div style={{ fontWeight: 600 }}>Concurrency & Idempotency</div>
-              <div style={{ color: 'var(--text-secondary)', marginTop: 2 }}>
-                Atomic conditional SQLite updates with mandatory <code>Idempotency-Key</code>{' '}
-                headers prevent double-charging.
-              </div>
-            </div>
-
-            <div
-              style={{
-                padding: '10px 12px',
-                background: 'var(--bg-subtle)',
-                borderRadius: 'var(--radius-sm)',
-              }}
-            >
-              <div style={{ fontWeight: 600 }}>Database Engine</div>
-              <div style={{ color: 'var(--text-secondary)', marginTop: 2 }}>
-                Cloudflare D1 SQLite database with 5 named integrity constraints.
+            <div>
+              <h2 className="section-heading" style={{ margin: 0 }}>
+                Account Profile
+              </h2>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                Authenticated user session
               </div>
             </div>
           </div>
+
+          {user ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div className="form-field" style={{ marginBottom: 0 }}>
+                <label htmlFor="settings-user-name" className="form-label">
+                  Signed In As
+                </label>
+                <input
+                  id="settings-user-name"
+                  type="text"
+                  className="form-input"
+                  value={user.name}
+                  disabled
+                />
+              </div>
+
+              <div className="form-field" style={{ marginBottom: 0 }}>
+                <label htmlFor="settings-user-email" className="form-label">
+                  Email Address
+                </label>
+                <input
+                  id="settings-user-email"
+                  type="email"
+                  className="form-input"
+                  value={user.email}
+                  disabled
+                />
+              </div>
+
+              <div className="form-field" style={{ marginBottom: 0 }}>
+                <label htmlFor="settings-household-role" className="form-label">
+                  Household Membership Role
+                </label>
+                <input
+                  id="settings-household-role"
+                  type="text"
+                  className="form-input"
+                  value={currentHomeRole || 'Member'}
+                  disabled
+                  style={{ textTransform: 'capitalize' }}
+                />
+              </div>
+
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={onLogout}
+                style={{
+                  alignSelf: 'flex-start',
+                  marginTop: 6,
+                  color: 'var(--danger)',
+                  borderColor: 'var(--danger-border)',
+                }}
+              >
+                <IconLogOut size={16} />
+                <span>Sign Out of Account</span>
+              </button>
+            </div>
+          ) : (
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+              No active user authenticated.
+            </div>
+          )}
         </div>
       </div>
     </div>

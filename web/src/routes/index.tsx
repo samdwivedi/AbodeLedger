@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, api, type Balance, type Bill, type Home, type Member } from '../api/client'
 import { AuthModal } from '../components/AuthModal'
+import { AuthScreen } from '../components/AuthScreen'
 import { BalancesSection } from '../components/BalancesSection'
 import { BillsSection } from '../components/BillsSection'
 import { Header } from '../components/Header'
@@ -13,18 +14,26 @@ import { SettingsSection } from '../components/SettingsSection'
 import { type NavTab, Sidebar } from '../components/Sidebar'
 import { useAuth } from '../context/AuthContext'
 
+const SELECTED_HOME_KEY = 'abodeledger_selected_home_id'
+
 export const Route = createFileRoute('/')({
   component: DashboardPage,
 })
 
 function DashboardPage() {
-  const { user, logout } = useAuth()
+  const { user, isLoading: isAuthLoading, isAuthenticated, logout } = useAuth()
   const [activeTab, setActiveTab] = useState<NavTab>('overview')
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
 
   // Data states
   const [homes, setHomes] = useState<Home[]>([])
-  const [selectedHomeId, setSelectedHomeId] = useState<string>('')
+  const [selectedHomeId, setSelectedHomeId] = useState<string>(() => {
+    try {
+      return localStorage.getItem(SELECTED_HOME_KEY) || ''
+    } catch {
+      return ''
+    }
+  })
   const [members, setMembers] = useState<Member[]>([])
   const [bills, setBills] = useState<Bill[]>([])
   const [balances, setBalances] = useState<Balance[]>([])
@@ -32,7 +41,7 @@ function DashboardPage() {
   const [currentMemberId, setCurrentMemberId] = useState<string | null>(null)
 
   // Loading & Error states
-  const [isLoading, setIsLoading] = useState(true)
+  const [isDataLoading, setIsDataLoading] = useState(true)
   const [errorBanner, setErrorBanner] = useState<string | null>(null)
 
   // Modals
@@ -43,87 +52,131 @@ function DashboardPage() {
 
   // Payment in-flight and idempotency tracking
   const [payingShareIds, setPayingShareIds] = useState<Set<string>>(new Set())
-  // Persistent map of shareId -> idempotencyKey to retain identical key across retries/network failures
   const idempotencyKeysRef = useRef<Map<string, string>>(new Map())
+
+  // Sync selectedHomeId with localStorage
+  const handleSelectHome = useCallback((homeId: string) => {
+    setSelectedHomeId(homeId)
+    try {
+      if (homeId) {
+        localStorage.setItem(SELECTED_HOME_KEY, homeId)
+      } else {
+        localStorage.removeItem(SELECTED_HOME_KEY)
+      }
+    } catch {
+      // Ignore localStorage access failures
+    }
+  }, [])
 
   // Load homes list
   const loadHomes = useCallback(async () => {
+    if (!isAuthenticated) return []
+
     try {
       const homeList = await api.getHomes()
       setHomes(homeList)
-      if (homeList.length > 0 && !selectedHomeId) {
-        setSelectedHomeId(homeList[0]?.id ?? '')
-      } else if (homeList.length === 0) {
+
+      // Ensure valid active home selection
+      if (homeList.length > 0) {
+        // If current selected home still exists in list, keep it; otherwise default to first home
+        setSelectedHomeId((currentId) => {
+          const exists = homeList.some((h) => h.id === currentId)
+          const validId = exists ? currentId : (homeList[0]?.id ?? '')
+          try {
+            localStorage.setItem(SELECTED_HOME_KEY, validId)
+          } catch {
+            // Ignore
+          }
+          return validId
+        })
+      } else {
         setSelectedHomeId('')
         setMembers([])
         setBills([])
         setBalances([])
       }
+      return homeList
     } catch (err) {
       setErrorBanner(
         err instanceof Error ? err.message : 'Unable to connect to the AbodeLedger API.',
       )
+      return []
     }
-  }, [selectedHomeId])
+  }, [isAuthenticated])
 
   // Load active home details (members, bills, balances)
-  const loadHomeDetails = useCallback(async (homeId: string) => {
-    if (!homeId) {
-      setIsLoading(false)
-      return
-    }
+  const loadHomeDetails = useCallback(
+    async (homeId: string) => {
+      if (!homeId || !isAuthenticated) {
+        setIsDataLoading(false)
+        return
+      }
 
-    setIsLoading(true)
-    setErrorBanner(null)
+      setIsDataLoading(true)
+      setErrorBanner(null)
 
-    try {
-      const [homeData, billsData, balancesData] = await Promise.all([
-        api.getHome(homeId),
-        api.getBills(homeId),
-        api.getBalances(homeId),
-      ])
+      try {
+        const [homeData, billsData, balancesData] = await Promise.all([
+          api.getHome(homeId),
+          api.getBills(homeId),
+          api.getBalances(homeId),
+        ])
 
-      setMembers(homeData.members || [])
-      setBills(billsData || [])
-      setBalances(balancesData || [])
-      setCurrentHomeRole(homeData.userRole)
-      setCurrentMemberId(homeData.currentMemberId ?? null)
-    } catch (err) {
-      setErrorBanner(err instanceof Error ? err.message : 'Error loading apartment details')
-    } finally {
-      setIsLoading(false)
-    }
-  }, [])
+        setMembers(homeData.members || [])
+        setBills(billsData || [])
+        setBalances(balancesData || [])
+        setCurrentHomeRole(homeData.userRole)
+        setCurrentMemberId(homeData.currentMemberId ?? null)
+      } catch (err) {
+        setErrorBanner(err instanceof Error ? err.message : 'Error loading apartment details')
+      } finally {
+        setIsDataLoading(false)
+      }
+    },
+    [isAuthenticated],
+  )
 
+  // Initial load when user authentication state changes
   useEffect(() => {
-    loadHomes()
-  }, [loadHomes])
+    if (isAuthenticated) {
+      loadHomes()
+    } else {
+      setHomes([])
+      setMembers([])
+      setBills([])
+      setBalances([])
+      setIsDataLoading(false)
+    }
+  }, [isAuthenticated, loadHomes])
 
+  // Load home details whenever active household changes
   useEffect(() => {
-    if (selectedHomeId) {
+    if (isAuthenticated && selectedHomeId) {
       loadHomeDetails(selectedHomeId)
     }
-  }, [selectedHomeId, loadHomeDetails])
+  }, [isAuthenticated, selectedHomeId, loadHomeDetails])
 
-  // Handlers for Modals
+  // Modal Handlers
   const handleCreateHome = async (name: string) => {
     const newHome = await api.createHome(name)
     await loadHomes()
-    setSelectedHomeId(newHome.id)
+    handleSelectHome(newHome.id)
     setErrorBanner(null)
   }
 
   const handleAddMember = async (name: string) => {
     if (!selectedHomeId) return
     await api.addMember(selectedHomeId, name)
-    await loadHomeDetails(selectedHomeId)
+    // Synchronize both home details and homes list to keep memberCount 100% consistent
+    await Promise.all([loadHomeDetails(selectedHomeId), loadHomes()])
     setErrorBanner(null)
   }
 
   const handleCreateBill = async (title: string, totalPaise: number) => {
     if (!selectedHomeId) return
     await api.createBill(selectedHomeId, title, totalPaise)
-    await loadHomeDetails(selectedHomeId)
+    // Synchronize both home details and homes list
+    await Promise.all([loadHomeDetails(selectedHomeId), loadHomes()])
     setErrorBanner(null)
   }
 
@@ -132,7 +185,7 @@ function DashboardPage() {
     setErrorBanner(null)
     setPayingShareIds((prev) => new Set(prev).add(shareId))
 
-    // Requirement: Retain the same key across retries and network errors
+    // Requirement: Retain identical key across retries and network errors
     let idempotencyKey = idempotencyKeysRef.current.get(shareId)
     if (!idempotencyKey) {
       idempotencyKey = crypto.randomUUID()
@@ -148,7 +201,7 @@ function DashboardPage() {
           if (b.id !== billId) return b
           return {
             ...b,
-            shares: b.shares.map((s) => (s.id === shareId ? paidShare : s)),
+            shares: (b.shares || []).map((s) => (s.id === shareId ? paidShare : s)),
           }
         }),
       )
@@ -182,8 +235,42 @@ function DashboardPage() {
 
   const handleLogout = async () => {
     await logout()
-    setSelectedHomeId('')
-    await loadHomes()
+    handleSelectHome('')
+    setActiveTab('overview')
+  }
+
+  // 1. Splash Screen while restoring auth session
+  if (isAuthLoading) {
+    return (
+      <div
+        style={{
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'var(--bg-main)',
+          gap: 16,
+        }}
+      >
+        <div className="brand-emblem" style={{ width: 44, height: 44, fontSize: 18 }}>
+          AL
+        </div>
+        <div
+          style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-secondary)' }}
+        >
+          <span className="spinner spinner-dark" />
+          <span style={{ fontSize: 13, fontWeight: 500 }}>Connecting to AbodeLedger...</span>
+        </div>
+      </div>
+    )
+  }
+
+  // 2. CRITICAL USER REQUIREMENT:
+  // "just opeing wesbste first open login page then open rest things"
+  // If not authenticated, open the premium login/registration screen directly!
+  if (!isAuthenticated) {
+    return <AuthScreen onSuccess={() => loadHomes()} />
   }
 
   const currentHome = homes.find((h) => h.id === selectedHomeId)
@@ -196,6 +283,11 @@ function DashboardPage() {
         onSelectTab={setActiveTab}
         isMobileOpen={isMobileNavOpen}
         onCloseMobile={() => setIsMobileNavOpen(false)}
+        billsCount={bills.length}
+        membersCount={members.length}
+        user={user}
+        currentHomeRole={currentHomeRole || currentHome?.userRole}
+        onLogout={handleLogout}
       />
 
       <div className="main-wrapper">
@@ -205,7 +297,9 @@ function DashboardPage() {
           homes={homes}
           selectedHomeId={selectedHomeId}
           user={user}
-          onSelectHome={setSelectedHomeId}
+          currentHomeRole={currentHomeRole || currentHome?.userRole}
+          hasMembers={members.length > 0}
+          onSelectHome={handleSelectHome}
           onOpenCreateHome={() => setIsCreateHomeOpen(true)}
           onOpenCreateBill={() => setIsCreateBillOpen(true)}
           onToggleMobileMenu={() => setIsMobileNavOpen((prev) => !prev)}
@@ -218,13 +312,7 @@ function DashboardPage() {
           {/* Error Banner */}
           {errorBanner && (
             <div className="alert alert-error" role="alert">
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                }}
-              >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <IconAlertCircle size={18} />
                 <span>{errorBanner}</span>
               </div>
@@ -235,7 +323,7 @@ function DashboardPage() {
                 style={{
                   padding: '2px 8px',
                   fontSize: 12,
-                  borderColor: 'var(--error-border)',
+                  borderColor: 'var(--danger-border)',
                 }}
               >
                 Dismiss
@@ -243,25 +331,39 @@ function DashboardPage() {
             </div>
           )}
 
-          {/* If no homes exist yet, show clean get-started card */}
-          {homes.length === 0 && !isLoading ? (
+          {/* If no households exist yet, show clean initial setup card */}
+          {homes.length === 0 && !isDataLoading ? (
             <div
               className="card card-padding"
-              style={{ textAlign: 'center', padding: '48px 24px' }}
+              style={{
+                textAlign: 'center',
+                padding: '56px 24px',
+                maxWidth: 560,
+                margin: '40px auto',
+              }}
             >
-              <h2 className="page-heading" style={{ fontSize: 22 }}>
+              <div
+                className="brand-emblem"
+                style={{ width: 48, height: 48, fontSize: 20, margin: '0 auto 20px' }}
+              >
+                AL
+              </div>
+              <h2 className="page-heading" style={{ fontSize: 24, marginBottom: 8 }}>
                 Welcome to AbodeLedger
               </h2>
-              <p className="page-subheading" style={{ maxWidth: 440, margin: '8px auto 20px' }}>
-                A minimal, transparent shared bill-splitting dashboard for housemates. Create your
-                apartment to begin.
+              <p
+                className="page-subheading"
+                style={{ maxWidth: 440, margin: '0 auto 24px', fontSize: 14 }}
+              >
+                You don't have an active household yet. Create your first apartment to start adding
+                roommates, tracking expenses, and splitting bills.
               </p>
               <button
                 type="button"
-                className="btn btn-primary"
+                className="btn btn-primary btn-lg"
                 onClick={() => setIsCreateHomeOpen(true)}
               >
-                Create Your Apartment
+                Create Your Household
               </button>
             </div>
           ) : (
@@ -271,6 +373,8 @@ function DashboardPage() {
                   bills={bills}
                   members={members}
                   balances={balances}
+                  user={user}
+                  currentHomeName={currentHome?.name}
                   onOpenCreateBill={() => setIsCreateBillOpen(true)}
                   onOpenAddMember={() => setIsAddMemberOpen(true)}
                   onNavigateTab={(tab) => setActiveTab(tab)}
@@ -303,7 +407,15 @@ function DashboardPage() {
 
               {activeTab === 'balances' && <BalancesSection balances={balances} bills={bills} />}
 
-              {activeTab === 'settings' && <SettingsSection currentHome={currentHome} />}
+              {activeTab === 'settings' && (
+                <SettingsSection
+                  currentHome={currentHome}
+                  members={members}
+                  user={user}
+                  currentHomeRole={currentHomeRole || currentHome?.userRole}
+                  onLogout={handleLogout}
+                />
+              )}
             </>
           )}
         </main>

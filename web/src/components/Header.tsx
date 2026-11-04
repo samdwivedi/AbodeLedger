@@ -1,5 +1,5 @@
 import type { Home, User } from '../api/client'
-import { IconBuilding, IconMenu, IconPlus } from './icons'
+import { IconBuilding, IconLogOut, IconMenu, IconPlus } from './icons'
 import type { NavTab } from './Sidebar'
 
 interface HeaderProps {
@@ -7,6 +7,8 @@ interface HeaderProps {
   homes: Home[]
   selectedHomeId: string
   user: User | null
+  currentHomeRole?: string
+  hasMembers?: boolean
   onSelectHome: (homeId: string) => void
   onOpenCreateHome: () => void
   onOpenCreateBill: () => void
@@ -20,6 +22,8 @@ export function Header({
   homes,
   selectedHomeId,
   user,
+  currentHomeRole,
+  hasMembers = true,
   onSelectHome,
   onOpenCreateHome,
   onOpenCreateBill,
@@ -30,15 +34,15 @@ export function Header({
   const getPageTitle = (tab: NavTab): string => {
     switch (tab) {
       case 'overview':
-        return 'Dashboard'
+        return 'Financial Overview'
       case 'bills':
         return 'Household Bills'
       case 'members':
-        return 'Members'
+        return 'Roommates & Members'
       case 'balances':
-        return 'Balance Summary'
+        return 'Settlement Balances'
       case 'settings':
-        return 'Settings'
+        return 'Household Settings'
     }
   }
 
@@ -51,6 +55,8 @@ export function Header({
         .toUpperCase()
     : 'AL'
 
+  const currentHome = homes.find((h) => h.id === selectedHomeId)
+
   return (
     <header className="top-header">
       <div className="header-left">
@@ -62,123 +68,87 @@ export function Header({
         >
           <IconMenu size={20} />
         </button>
-        <span className="page-title">{getPageTitle(activeTab)}</span>
+
+        <div>
+          <span className="page-title">{getPageTitle(activeTab)}</span>
+          {currentHome && (
+            <div style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>
+              Active Apartment: <strong>{currentHome.name}</strong>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="header-right">
-        {/* Home Selector Dropdown */}
-        <div
-          className="home-dropdown-wrapper"
-          style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+        {/* Household Selector Dropdown */}
+        <div className="home-selector-pill">
+          <IconBuilding size={15} color="var(--secondary-green)" />
+          <select
+            className="home-selector-select"
+            value={selectedHomeId}
+            onChange={(e) => {
+              if (e.target.value === '__NEW__') {
+                onOpenCreateHome()
+              } else {
+                onSelectHome(e.target.value)
+              }
+            }}
+            aria-label="Select Household"
+          >
+            {homes.map((h) => (
+              <option key={h.id} value={h.id}>
+                {h.name}
+              </option>
+            ))}
+            <option value="__NEW__">+ New Household...</option>
+          </select>
+        </div>
+
+        {/* Quick Action: Split Bill */}
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          onClick={onOpenCreateBill}
+          disabled={!hasMembers || !selectedHomeId}
+          title={
+            !hasMembers ? 'Add roommates before splitting bills' : 'Split a new household expense'
+          }
         >
+          <IconPlus size={15} />
+          <span>Split Bill</span>
+        </button>
+
+        {/* User Pill or Sign In Button */}
+        {user ? (
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 6,
-              background: 'var(--bg-main)',
-              border: '1px solid var(--border-light)',
-              borderRadius: 'var(--radius-sm)',
-              padding: '2px 8px',
+              gap: 8,
+              paddingLeft: 8,
+              borderLeft: '1px solid var(--border)',
             }}
           >
-            <IconBuilding size={15} color="var(--text-secondary)" />
-            <select
-              value={selectedHomeId}
-              onChange={(e) => {
-                if (e.target.value === '__NEW__') {
-                  onOpenCreateHome()
-                } else {
-                  onSelectHome(e.target.value)
-                }
-              }}
-              aria-label="Select Apartment"
-              style={{
-                border: 'none',
-                background: 'transparent',
-                color: 'var(--text-primary)',
-                fontSize: '13px',
-                fontWeight: 500,
-                padding: '4px 2px',
-                outline: 'none',
-                cursor: 'pointer',
-              }}
-            >
-              {homes.length === 0 ? (
-                <option value="">No homes created</option>
-              ) : (
-                homes.map((h) => (
-                  <option key={h.id} value={h.id}>
-                    {h.name}
-                  </option>
-                ))
-              )}
-              <option value="__NEW__">+ Create New Home...</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Primary CTA: Create Bill */}
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={onOpenCreateBill}
-          disabled={!selectedHomeId}
-        >
-          <IconPlus size={16} />
-          <span>Create Bill</span>
-        </button>
-
-        {/* Authentication State & Profile */}
-        {user ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: '50%',
-                background: 'var(--primary-subtle, rgba(37, 99, 235, 0.1))',
-                border: '1px solid var(--border-light)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 12,
-                fontWeight: 600,
-                color: 'var(--primary)',
-              }}
-              title={`${user.name} (${user.email})`}
+              className="user-avatar"
+              style={{ width: 30, height: 30, fontSize: 12 }}
+              title={`${user.name} (${currentHomeRole || 'Member'})`}
             >
               {initials}
             </div>
-            <span
-              style={{
-                fontSize: 13,
-                fontWeight: 500,
-                color: 'var(--text-primary)',
-                maxWidth: 120,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {user.name}
-            </span>
             <button
               type="button"
               className="btn btn-secondary btn-sm"
               onClick={onLogout}
-              style={{ fontSize: 12, padding: '4px 8px' }}
+              style={{ padding: '4px 8px', fontSize: 11.5 }}
+              title="Sign Out"
             >
-              Sign Out
+              <IconLogOut size={14} />
+              <span>Logout</span>
             </button>
           </div>
         ) : (
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
-            onClick={onOpenAuth}
-            style={{ fontSize: 12, padding: '6px 12px' }}
-          >
+          <button type="button" className="btn btn-secondary btn-sm" onClick={onOpenAuth}>
             Sign In
           </button>
         )}
