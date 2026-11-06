@@ -1,7 +1,5 @@
 # SDE Intern Assignment: Shared Bill Splitter
 
-Welcome to **AbodeLedger** — a production-grade shared bill splitter and financial ledger designed for shared households and modern roommates.
-
 ---
 
 .
