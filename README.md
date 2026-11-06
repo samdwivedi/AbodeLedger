@@ -6,7 +6,7 @@
 
 ### 1. First-Open Authentication & Onboarding Gate
 
-Every session is secured with native WebCrypto PBKDF2 password hashing and secure `__Host-session` HttpOnly cookies. New roommates can sign in or create an account with real-time character validation.
+Every session is secured with native WebCrypto PBKDF2 password hashing and secure `Host-session` HttpOnly cookies. New roommates can sign in or create an account with real-time character validation.
 
 ![First-Open Authentication Gate](docs/screenshots/01-auth-screen.png)
 
