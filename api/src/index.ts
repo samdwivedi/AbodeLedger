@@ -373,6 +373,11 @@ app.post('/api/invitations/:token/accept', authMiddleware, async (c) => {
     return c.json({ error: 'Invitation has expired' }, 400)
   }
 
+  // Ensure the authenticated user's normalized email exactly matches the invitation recipient
+  if (normalizeEmail(user.email) !== normalizeEmail(invitation.email)) {
+    return c.json({ error: 'You are not authorized to accept this invitation' }, 403)
+  }
+
   // Ensure user is not already a member of this home
   const existingMembership = await c.env.DB.prepare(
     'SELECT id FROM home_memberships WHERE home_id = ? AND user_id = ?',

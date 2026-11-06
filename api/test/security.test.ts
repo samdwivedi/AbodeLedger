@@ -499,5 +499,231 @@ describe('Security & Authentication Audit Suite', { timeout: 15000 }, () => {
       )
       expect(payBenShare.status).toBe(200)
     })
+
+    describe('Household Invitation Email Verification Security', () => {
+      it('allows account with exact matching email to accept invitation', async () => {
+        // 1. Owner registers and creates home
+        const owner = await authCall('POST', '/api/auth/register', {
+          body: {
+            email: `owner_inv_${Date.now()}@example.com`,
+            password: 'Password123!',
+            name: 'Home Owner',
+          },
+        })
+        const home = await authCall<{ id: string }>('POST', '/api/homes', {
+          body: { name: 'Verified Invites Home' },
+          cookie: owner.cookie,
+        })
+
+        // 2. Invitee registers
+        const inviteeEmail = `invited_${Date.now()}@example.com`
+        const invitee = await authCall('POST', '/api/auth/register', {
+          body: {
+            email: inviteeEmail,
+            password: 'Password123!',
+            name: 'Invited Member',
+          },
+        })
+
+        // 3. Owner creates invitation
+        const invite = await authCall<{ token: string }>(
+          'POST',
+          `/api/homes/${home.body.id}/invitations`,
+          {
+            body: { email: inviteeEmail, role: 'member' },
+            cookie: owner.cookie,
+          },
+        )
+        expect(invite.status).toBe(201)
+
+        // 4. Correct email accepts invitation (succeeds 200)
+        const accept = await authCall('POST', `/api/invitations/${invite.body.token}/accept`, {
+          cookie: invitee.cookie,
+        })
+        expect(accept.status).toBe(200)
+        expect(accept.body).toEqual({
+          success: true,
+          homeId: home.body.id,
+          role: 'member',
+        })
+      })
+
+      it('rejects different email from accepting invitation with HTTP 403 and generic error message', async () => {
+        // 1. Owner registers and creates home
+        const owner = await authCall('POST', '/api/auth/register', {
+          body: {
+            email: `owner_mismatch_${Date.now()}@example.com`,
+            password: 'Password123!',
+            name: 'Home Owner',
+          },
+        })
+        const home = await authCall<{ id: string }>('POST', '/api/homes', {
+          body: { name: 'Secure Invites Home' },
+          cookie: owner.cookie,
+        })
+
+        // 2. Owner invites target recipient
+        const targetEmail = `target_recipient_${Date.now()}@example.com`
+        const invite = await authCall<{ token: string }>(
+          'POST',
+          `/api/homes/${home.body.id}/invitations`,
+          {
+            body: { email: targetEmail, role: 'member' },
+            cookie: owner.cookie,
+          },
+        )
+        expect(invite.status).toBe(201)
+
+        // 3. Attacker registers with different email
+        const attacker = await authCall('POST', '/api/auth/register', {
+          body: {
+            email: `attacker_${Date.now()}@example.com`,
+            password: 'Password123!',
+            name: 'Attacker User',
+          },
+        })
+
+        // 4. Attacker attempts to accept invitation (MUST BE REJECTED 403)
+        const unauthorizedAccept = await authCall(
+          'POST',
+          `/api/invitations/${invite.body.token}/accept`,
+          {
+            cookie: attacker.cookie,
+          },
+        )
+        expect(unauthorizedAccept.status).toBe(403)
+        expect(unauthorizedAccept.body).toEqual({
+          error: 'You are not authorized to accept this invitation',
+        })
+      })
+
+      it('normalizes email casing and whitespace when validating invitation acceptance', async () => {
+        // 1. Owner registers and creates home
+        const owner = await authCall('POST', '/api/auth/register', {
+          body: {
+            email: `owner_norm_${Date.now()}@example.com`,
+            password: 'Password123!',
+            name: 'Home Owner',
+          },
+        })
+        const home = await authCall<{ id: string }>('POST', '/api/homes', {
+          body: { name: 'Normalized Email Home' },
+          cookie: owner.cookie,
+        })
+
+        // 2. Owner invites email with uppercase letters and whitespace
+        const baseEmail = `normalize_test_${Date.now()}@example.com`
+        const rawInviteEmail = `   ${baseEmail.toUpperCase()}   `
+        const invite = await authCall<{ token: string }>(
+          'POST',
+          `/api/homes/${home.body.id}/invitations`,
+          {
+            body: { email: rawInviteEmail, role: 'admin' },
+            cookie: owner.cookie,
+          },
+        )
+        expect(invite.status).toBe(201)
+
+        // 3. User registers with standard lowercase email
+        const invitee = await authCall('POST', '/api/auth/register', {
+          body: {
+            email: baseEmail.toLowerCase(),
+            password: 'Password123!',
+            name: 'Normalized Invitee',
+          },
+        })
+
+        // 4. Invitee accepts invitation (MUST SUCCEED 200 due to normalized matching)
+        const accept = await authCall('POST', `/api/invitations/${invite.body.token}/accept`, {
+          cookie: invitee.cookie,
+        })
+        expect(accept.status).toBe(200)
+        expect(accept.body).toEqual({
+          success: true,
+          homeId: home.body.id,
+          role: 'admin',
+        })
+      })
+
+      it('leaves invitation reusable by the intended account after a failed acceptance by another account', async () => {
+        // 1. Owner registers and creates home
+        const owner = await authCall('POST', '/api/auth/register', {
+          body: {
+            email: `owner_reusable_${Date.now()}@example.com`,
+            password: 'Password123!',
+            name: 'Home Owner',
+          },
+        })
+        const home = await authCall<{ id: string }>('POST', '/api/homes', {
+          body: { name: 'Reusable Invite Home' },
+          cookie: owner.cookie,
+        })
+
+        // 2. Intended recipient registers
+        const intendedEmail = `intended_${Date.now()}@example.com`
+        const intendedUser = await authCall('POST', '/api/auth/register', {
+          body: {
+            email: intendedEmail,
+            password: 'Password123!',
+            name: 'Intended User',
+          },
+        })
+
+        // 3. Unintended user (attacker) registers
+        const intruder = await authCall('POST', '/api/auth/register', {
+          body: {
+            email: `intruder_${Date.now()}@example.com`,
+            password: 'Password123!',
+            name: 'Intruder User',
+          },
+        })
+
+        // 4. Owner creates invitation for intended user
+        const invite = await authCall<{ token: string }>(
+          'POST',
+          `/api/homes/${home.body.id}/invitations`,
+          {
+            body: { email: intendedEmail, role: 'member' },
+            cookie: owner.cookie,
+          },
+        )
+        expect(invite.status).toBe(201)
+
+        // 5. Intruder tries to accept first -> fails with 403
+        const intruderAccept = await authCall(
+          'POST',
+          `/api/invitations/${invite.body.token}/accept`,
+          {
+            cookie: intruder.cookie,
+          },
+        )
+        expect(intruderAccept.status).toBe(403)
+
+        // 6. Intended recipient accepts the same token -> must succeed with 200
+        const legitimateAccept = await authCall(
+          'POST',
+          `/api/invitations/${invite.body.token}/accept`,
+          {
+            cookie: intendedUser.cookie,
+          },
+        )
+        expect(legitimateAccept.status).toBe(200)
+        expect(legitimateAccept.body).toEqual({
+          success: true,
+          homeId: home.body.id,
+          role: 'member',
+        })
+
+        // 7. Subsequent attempt on now-accepted token returns 404 (already accepted)
+        const duplicateAccept = await authCall(
+          'POST',
+          `/api/invitations/${invite.body.token}/accept`,
+          {
+            cookie: intendedUser.cookie,
+          },
+        )
+        expect(duplicateAccept.status).toBe(404)
+      })
+    })
   })
 })
