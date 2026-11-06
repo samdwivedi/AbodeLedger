@@ -127,6 +127,12 @@ export const authMiddleware: MiddlewareHandler<AuthEnv> = async (c, next) => {
       (typeof process !== 'undefined' && process.env?.NODE_ENV === 'test')
 
     if (isTestRuntime && !isStrictTest) {
+      // Ensure test runner account exists in test SQLite runtime to satisfy foreign key constraints
+      await c.env.DB.prepare(
+        `INSERT OR IGNORE INTO users (id, email, password_hash, name, email_verified)
+         VALUES ('test-default-user', 'test@abodeledger.local', 'DISABLED_ACCOUNT_TEST_ONLY', 'Default Test User', 1)`,
+      ).run()
+
       c.set('user', {
         id: 'test-default-user',
         email: 'test@abodeledger.local',

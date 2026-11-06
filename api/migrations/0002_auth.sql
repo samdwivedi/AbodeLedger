@@ -114,15 +114,3 @@ CREATE TABLE home_invitations (
 CREATE INDEX idx_home_invitations_token_hash ON home_invitations (token_hash);
 CREATE INDEX idx_home_invitations_home_email ON home_invitations (home_id, email);
 
--- ------------------------------------------------------------
--- 5. SEED DEFAULT USER & ADOPT EXISTING DATA
--- Guarantees backwards compatibility for existing tests and data
--- ------------------------------------------------------------
-INSERT OR IGNORE INTO users (id, email, password_hash, name, email_verified)
-VALUES ('test-default-user', 'test@abodeledger.local', 'DISABLED_ACCOUNT_TEST_ONLY', 'Default Test User', 1);
-
-INSERT OR IGNORE INTO home_memberships (id, home_id, user_id, role)
-SELECT 'membership-' || id, id, 'test-default-user', 'owner'
-FROM homes
-WHERE id NOT IN (SELECT home_id FROM home_memberships);
-
